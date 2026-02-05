@@ -136,11 +136,11 @@ export function Navbar() {
 
             {/* CTA Buttons */}
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" size="sm">
-                เข้าสู่ระบบ
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/login">เข้าสู่ระบบ</Link>
               </Button>
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
-                ลงทะเบียน
+              <Button size="sm" className="bg-primary hover:bg-primary/90" asChild>
+                <Link href="/register">ลงทะเบียน</Link>
               </Button>
             </div>
 
@@ -192,11 +192,11 @@ export function Navbar() {
                 </div>
               ))}
               <div className="flex gap-2 mt-4 px-4">
-                <Button variant="outline" size="sm" className="flex-1">
-                  เข้าสู่ระบบ
+                <Button variant="outline" size="sm" className="flex-1" asChild>
+                  <Link href="/login" onClick={() => setIsOpen(false)}>เข้าสู่ระบบ</Link>
                 </Button>
-                <Button size="sm" className="flex-1 bg-primary">
-                  ลงทะเบียน
+                <Button size="sm" className="flex-1 bg-primary" asChild>
+                  <Link href="/register" onClick={() => setIsOpen(false)}>ลงทะเบียน</Link>
                 </Button>
               </div>
             </div>
