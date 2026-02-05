@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { 
   ArrowRight, 
@@ -60,13 +60,13 @@ export function MatchingSection() {
             
             <div className="flex flex-col sm:flex-row gap-4">
               <Button asChild size="lg" className="bg-primary hover:bg-primary/90 group">
-                <Link to="/partnership/matching">
+                <Link href="/partnership/matching">
                   เริ่มจับคู่ธุรกิจ
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link to="/partnership">
+                <Link href="/partnership">
                   ดูผู้ประกอบการทั้งหมด
                 </Link>
               </Button>

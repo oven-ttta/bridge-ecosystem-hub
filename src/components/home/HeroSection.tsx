@@ -1,6 +1,6 @@
 import { ArrowRight, Users, Briefcase, Calendar, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 
 const stats = [
   { label: "ผู้ประกอบการ", value: "500+", icon: Users },
@@ -50,13 +50,13 @@ export function HeroSection() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-fade-in" style={{ animationDelay: "0.3s" }}>
             <Button asChild size="lg" className="btn-accent-gradient text-base h-14 px-8 group">
-              <Link to="/partnership/register">
+              <Link href="/partnership/register">
                 เข้าร่วมเครือข่าย
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-base h-14 px-8">
-              <Link to="/partnership">
+              <Link href="/partnership">
                 ค้นหาผู้ประกอบการ
               </Link>
             </Button>

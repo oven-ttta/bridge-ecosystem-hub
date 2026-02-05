@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { 
   Users, 
   Handshake, 
@@ -105,7 +105,7 @@ export function FeaturesSection() {
           {features.map((feature, index) => (
             <Link
               key={feature.title}
-              to={feature.href}
+              href={feature.href}
               className="group relative bg-card rounded-2xl p-8 border border-border/50 shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 overflow-hidden"
               style={{ animationDelay: `${index * 0.1}s` }}
             >

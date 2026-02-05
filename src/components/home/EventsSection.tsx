@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -76,7 +76,7 @@ export function EventsSection() {
           {upcomingEvents.map((event) => (
             <Link
               key={event.id}
-              to={`/events/${event.id}`}
+              href={`/events/${event.id}`}
               className="group bg-card rounded-2xl overflow-hidden border border-border/50 hover:shadow-xl transition-all duration-300"
             >
               {/* Image */}
@@ -141,7 +141,7 @@ export function EventsSection() {
         {/* CTA */}
         <div className="text-center">
           <Button asChild size="lg">
-            <Link to="/events">
+            <Link href="/events">
               ดูกิจกรรมทั้งหมด
               <ArrowRight className="w-5 h-5 ml-2" />
             </Link>

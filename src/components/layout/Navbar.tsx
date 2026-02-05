@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, ChevronDown, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,33 +13,42 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
-  { 
-    label: "เครือข่าย", 
+  {
+    label: "เครือข่าย",
     labelEn: "Partnership",
     href: "/partnership",
     children: [
-      { label: "ค้นหาผู้ประกอบการ", href: "/partnership/directory" },
+      { label: "ค้นหาผู้ประกอบการ", href: "/partnership" },
       { label: "Business Matching", href: "/partnership/matching" },
-      { label: "สมัครเป็นสมาชิก", href: "/partnership/register" },
-    ]
+    ],
   },
-  { 
-    label: "ทุนสนับสนุน", 
+  {
+    label: "ทุนสนับสนุน",
     labelEn: "Grants",
     href: "/grants",
-    children: [
-      { label: "โครงการที่เปิดรับ", href: "/grants/open" },
-      { label: "ยื่นข้อเสนอโครงการ", href: "/grants/apply" },
-      { label: "ติดตามสถานะ", href: "/grants/status" },
-    ]
   },
-  { 
-    label: "กิจกรรม", 
+  {
+    label: "กิจกรรม",
     labelEn: "Events",
     href: "/events",
   },
-  { 
-    label: "รายงาน", 
+  {
+    label: "เอกสาร",
+    labelEn: "Documents",
+    href: "/documents",
+  },
+  {
+    label: "การมอบสิทธิ์",
+    labelEn: "Delegation",
+    href: "/delegation",
+  },
+  {
+    label: "API",
+    labelEn: "Integrations",
+    href: "/integrations",
+  },
+  {
+    label: "รายงาน",
     labelEn: "Analytics",
     href: "/analytics",
   },
@@ -45,35 +57,41 @@ const navItems = [
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [lang, setLang] = useState<"th" | "en">("th");
-  const location = useLocation();
+  const pathname = usePathname();
 
-  const isActive = (href: string) => location.pathname.startsWith(href);
+  const isActive = (href: string) => pathname.startsWith(href);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
-              <span className="text-primary-foreground font-bold text-lg">B</span>
+              <span className="text-primary-foreground font-bold text-lg">
+                B
+              </span>
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-display font-bold text-xl text-foreground">BRIDGE</h1>
-              <p className="text-[10px] text-muted-foreground -mt-1">Ecosystem Platform</p>
+              <h1 className="font-display font-bold text-xl text-foreground">
+                BRIDGE
+              </h1>
+              <p className="text-[10px] text-muted-foreground -mt-1">
+                Ecosystem Platform
+              </p>
             </div>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-1">
-            {navItems.map((item) => (
+            {navItems.map((item) =>
               item.children ? (
                 <DropdownMenu key={item.href}>
                   <DropdownMenuTrigger asChild>
-                    <button 
+                    <button
                       className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isActive(item.href) 
-                          ? "bg-primary/10 text-primary" 
+                        isActive(item.href)
+                          ? "bg-primary/10 text-primary"
                           : "text-muted-foreground hover:text-foreground hover:bg-muted"
                       }`}
                     >
@@ -84,7 +102,7 @@ export function Navbar() {
                   <DropdownMenuContent align="start" className="w-48">
                     {item.children.map((child) => (
                       <DropdownMenuItem key={child.href} asChild>
-                        <Link to={child.href}>{child.label}</Link>
+                        <Link href={child.href}>{child.label}</Link>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -92,23 +110,23 @@ export function Navbar() {
               ) : (
                 <Link
                   key={item.href}
-                  to={item.href}
+                  href={item.href}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.href) 
-                      ? "bg-primary/10 text-primary" 
+                    isActive(item.href)
+                      ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   }`}
                 >
                   {lang === "th" ? item.label : item.labelEn}
                 </Link>
               )
-            ))}
+            )}
           </div>
 
           {/* Right Side */}
           <div className="flex items-center gap-3">
             {/* Language Toggle */}
-            <button 
+            <button
               onClick={() => setLang(lang === "th" ? "en" : "th")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
@@ -127,11 +145,15 @@ export function Navbar() {
             </div>
 
             {/* Mobile Menu Toggle */}
-            <button 
+            <button
               onClick={() => setIsOpen(!isOpen)}
               className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             >
-              {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {isOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
@@ -143,11 +165,11 @@ export function Navbar() {
               {navItems.map((item) => (
                 <div key={item.href}>
                   <Link
-                    to={item.href}
+                    href={item.href}
                     onClick={() => setIsOpen(false)}
                     className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                      isActive(item.href) 
-                        ? "bg-primary/10 text-primary" 
+                      isActive(item.href)
+                        ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     }`}
                   >
@@ -158,7 +180,7 @@ export function Navbar() {
                       {item.children.map((child) => (
                         <Link
                           key={child.href}
-                          to={child.href}
+                          href={child.href}
                           onClick={() => setIsOpen(false)}
                           className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
                         >

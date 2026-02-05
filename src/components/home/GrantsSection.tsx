@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -66,7 +66,7 @@ export function GrantsSection() {
             </p>
           </div>
           <Button asChild variant="outline" className="lg:self-end">
-            <Link to="/grants">
+            <Link href="/grants">
               ดูทุนทั้งหมด
               <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
@@ -96,7 +96,7 @@ export function GrantsSection() {
           {openGrants.map((grant) => (
             <Link
               key={grant.id}
-              to={`/grants/${grant.id}`}
+              href={`/grants/${grant.id}`}
               className="group bg-card rounded-2xl p-6 border border-border/50 hover:shadow-xl hover:border-primary/20 transition-all duration-300"
             >
               <div className="flex items-start justify-between mb-4">

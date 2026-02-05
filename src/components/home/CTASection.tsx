@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 
@@ -33,7 +33,7 @@ export function CTASection() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" className="btn-accent-gradient text-base h-14 px-8 group">
-                <Link to="/partnership/register">
+                <Link href="/partnership/register">
                   สมัครสมาชิกฟรี
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Link>
@@ -44,7 +44,7 @@ export function CTASection() {
                 size="lg" 
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-base h-14 px-8"
               >
-                <Link to="/about">
+                <Link href="/about">
                   เรียนรู้เพิ่มเติมเกี่ยวกับ สขญ.
                 </Link>
               </Button>
