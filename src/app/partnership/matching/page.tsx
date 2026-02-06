@@ -14,6 +14,12 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Target,
   Search,
   TrendingUp,
@@ -31,10 +37,36 @@ import {
   Database,
   Cloud,
   Shield,
+  Mail,
+  Phone,
+  ExternalLink,
+  Star,
+  Briefcase,
 } from "lucide-react";
 
+// --- Type ---
+type MatchResult = {
+  id: number;
+  company: string;
+  matchScore: number;
+  type: string;
+  location: string;
+  expertise: string[];
+  matchReasons: string[];
+  verified: boolean;
+  projectsCompleted: number;
+  avgRating: number;
+  description?: string;
+  contact?: {
+    email: string;
+    phone: string;
+    website: string;
+  };
+  services?: string[];
+};
+
 // --- Mock Data ---
-const matchResults = [
+const matchResults: MatchResult[] = [
   {
     id: 1,
     company: "DataFirst Analytics",
@@ -50,6 +82,13 @@ const matchResults = [
     verified: true,
     projectsCompleted: 24,
     avgRating: 4.8,
+    description: "DataFirst Analytics เป็นผู้นำด้าน Data Analytics และ Machine Learning ในประเทศไทย มีประสบการณ์มากกว่า 10 ปี ในการให้บริการวิเคราะห์ข้อมูลและพัฒนาโมเดล AI สำหรับองค์กรขนาดใหญ่และ SME",
+    contact: {
+      email: "contact@datafirst.co.th",
+      phone: "02-123-4567",
+      website: "www.datafirst.co.th",
+    },
+    services: ["Data Warehouse Design", "BI Dashboard", "Predictive Analytics", "ML Model Development", "Data Consulting"],
   },
   {
     id: 2,
@@ -66,6 +105,13 @@ const matchResults = [
     verified: true,
     projectsCompleted: 15,
     avgRating: 4.6,
+    description: "AI Vision Lab เชี่ยวชาญด้าน Computer Vision และ Deep Learning มีทีมงานที่มีประสบการณ์จากมหาวิทยาลัยชั้นนำ เน้นพัฒนาโซลูชัน AI สำหรับภาคอุตสาหกรรมและ IoT",
+    contact: {
+      email: "hello@aivisionlab.com",
+      phone: "053-987-6543",
+      website: "www.aivisionlab.com",
+    },
+    services: ["Object Detection", "Image Classification", "OCR Solutions", "IoT Integration", "Edge AI Development"],
   },
   {
     id: 3,
@@ -82,6 +128,13 @@ const matchResults = [
     verified: true,
     projectsCompleted: 42,
     avgRating: 4.9,
+    description: "Cloud AI Thailand เป็นผู้เชี่ยวชาญด้าน Cloud Infrastructure และ MLOps ให้บริการออกแบบและจัดการระบบ Cloud สำหรับ AI Workload พร้อมการันตี SLA 99.9%",
+    contact: {
+      email: "sales@cloudai.co.th",
+      phone: "02-555-8888",
+      website: "www.cloudai.co.th",
+    },
+    services: ["Cloud Architecture Design", "MLOps Pipeline", "Kubernetes Management", "CI/CD Implementation", "24/7 Monitoring"],
   },
   {
     id: 4,
@@ -97,6 +150,13 @@ const matchResults = [
     verified: true,
     projectsCompleted: 9,
     avgRating: 4.5,
+    description: "SmartFactory Tech มุ่งเน้นการพัฒนาโซลูชัน Industrial IoT และ Predictive Maintenance สำหรับโรงงานอุตสาหกรรม ช่วยลดต้นทุนและเพิ่มประสิทธิภาพการผลิต",
+    contact: {
+      email: "info@smartfactory.co.th",
+      phone: "038-111-2222",
+      website: "www.smartfactory.co.th",
+    },
+    services: ["Sensor Integration", "Predictive Maintenance", "Factory Dashboard", "Equipment Monitoring", "AI-powered QC"],
   },
 ];
 
@@ -163,6 +223,7 @@ export default function MatchingPage() {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedBudget, setSelectedBudget] = useState("");
   const [showResults, setShowResults] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState<MatchResult | null>(null);
 
   return (
     <main className="pt-20">
@@ -302,7 +363,10 @@ export default function MatchingPage() {
                               <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {result.projectsCompleted} โครงการ</span>
                             </div>
                           </div>
-                          <Button className="bg-primary hover:bg-primary/90">
+                          <Button
+                            className="bg-primary hover:bg-primary/90"
+                            onClick={() => setSelectedCompany(result)}
+                          >
                             ดูรายละเอียด
                             <ArrowRight className="w-4 h-4 ml-2" />
                           </Button>
@@ -429,6 +493,140 @@ export default function MatchingPage() {
           </Tabs>
         </div>
       </section>
+
+      {/* Company Detail Dialog */}
+      <Dialog open={!!selectedCompany} onOpenChange={() => setSelectedCompany(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedCompany && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-2xl font-bold">
+                    {selectedCompany.matchScore}
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl flex items-center gap-2">
+                      {selectedCompany.company}
+                      {selectedCompany.verified && (
+                        <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
+                        </Badge>
+                      )}
+                    </DialogTitle>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                      <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {selectedCompany.type}</span>
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {selectedCompany.location}</span>
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6 mt-4">
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-muted/50 rounded-xl">
+                    <div className="flex items-center justify-center gap-1 text-amber-500 mb-1">
+                      <Star className="w-4 h-4 fill-current" />
+                      <span className="text-lg font-bold">{selectedCompany.avgRating}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">คะแนนเฉลี่ย</p>
+                  </div>
+                  <div className="text-center p-4 bg-muted/50 rounded-xl">
+                    <div className="flex items-center justify-center gap-1 text-primary mb-1">
+                      <Briefcase className="w-4 h-4" />
+                      <span className="text-lg font-bold">{selectedCompany.projectsCompleted}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">โครงการสำเร็จ</p>
+                  </div>
+                  <div className="text-center p-4 bg-muted/50 rounded-xl">
+                    <div className="flex items-center justify-center gap-1 text-emerald-500 mb-1">
+                      <Target className="w-4 h-4" />
+                      <span className="text-lg font-bold">{selectedCompany.matchScore}%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Match Score</p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedCompany.description && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">เกี่ยวกับบริษัท</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{selectedCompany.description}</p>
+                  </div>
+                )}
+
+                {/* Expertise */}
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">ความเชี่ยวชาญ</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCompany.expertise.map((exp) => (
+                      <Badge key={exp} variant="outline" className="text-xs">{exp}</Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Services */}
+                {selectedCompany.services && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">บริการที่ให้</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCompany.services.map((service) => (
+                        <Badge key={service} className="text-xs bg-primary/10 text-primary border-primary/20">{service}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Match Reasons */}
+                <div className="bg-emerald-50 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-emerald-800 mb-2">เหตุผลในการจับคู่</h4>
+                  <ul className="space-y-2">
+                    {selectedCompany.matchReasons.map((reason, idx) => (
+                      <li key={idx} className="flex items-center gap-2 text-sm text-emerald-700">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Contact */}
+                {selectedCompany.contact && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-3">ข้อมูลติดต่อ</h4>
+                    <div className="space-y-2">
+                      <a href={`mailto:${selectedCompany.contact.email}`} className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <Mail className="w-4 h-4" />
+                        {selectedCompany.contact.email}
+                      </a>
+                      <a href={`tel:${selectedCompany.contact.phone}`} className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <Phone className="w-4 h-4" />
+                        {selectedCompany.contact.phone}
+                      </a>
+                      <a href={`https://${selectedCompany.contact.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <ExternalLink className="w-4 h-4" />
+                        {selectedCompany.contact.website}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t border-border">
+                  <Button className="flex-1 bg-primary hover:bg-primary/90">
+                    <Mail className="w-4 h-4 mr-2" />
+                    ติดต่อบริษัท
+                  </Button>
+                  <Button variant="outline" className="flex-1">
+                    <Users className="w-4 h-4 mr-2" />
+                    ขอนัดประชุม
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
