@@ -68,13 +68,6 @@ type MatchResult = {
   services?: string[];
 };
 
-import { MeiliSearch } from "meilisearch";
-
-const client = new MeiliSearch({
-  host: "http://meilisearch.ovenx.shop",
-  apiKey: "00a792db8bde947730d19d6175dd71d58614cf68",
-});
-
 // Mock data base removed, relying on meilisearch backend now
 
 export default function MatchingPage() {
@@ -98,34 +91,37 @@ export default function MatchingPage() {
   const performSearch = async (pageToFetch = 1) => {
     setIsSearching(true);
     try {
-      // Create filter array conditionally
-      let filter: string[] = [];
-      const regionMap: Record<string, string> = {
-        central: "กรุงเทพมหานคร",
-        north: "เชียงใหม่",
-        east: "ระยอง",
-        // add more specific mapping if needed based on data
-      };
+      const queryParams = new URLSearchParams({
+        q: searchTech,
+        region: selectedRegion,
+        page: pageToFetch.toString(),
+        limit: ITEMS_PER_PAGE.toString(),
+      });
 
-      if (
-        selectedRegion &&
-        selectedRegion !== "all" &&
-        regionMap[selectedRegion]
-      ) {
-        filter.push(`location = "${regionMap[selectedRegion]}"`);
+      const res = await fetch(
+        `/api/companies/search?${queryParams.toString()}`,
+      );
+      if (!res.ok) throw new Error("Network latency or failed fetch");
+
+      const rawData = await res.json();
+
+      let data;
+      if (rawData._data) {
+        // Decode base64 to utf-8 text safely
+        const binaryString = atob(rawData._data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const decodedText = new TextDecoder().decode(bytes);
+        data = JSON.parse(decodedText);
+      } else {
+        data = rawData; // Fallback for safety
       }
 
-      // Add budget filtering logic here if added to meilisearch dataset, for now just an example
-
-      const res = await client.index("companies").search(searchTech, {
-        filter: filter.length > 0 ? filter : undefined,
-        limit: ITEMS_PER_PAGE,
-        offset: (pageToFetch - 1) * ITEMS_PER_PAGE,
-      });
-      setMatchResults(res.hits as MatchResult[]);
-      const hitsCount = res.estimatedTotalHits || res.totalHits || 0;
-      setTotalHits(hitsCount);
-      setTotalPages(Math.max(1, Math.ceil(hitsCount / ITEMS_PER_PAGE)));
+      setMatchResults(data.hits as MatchResult[]);
+      setTotalHits(data.totalHits);
+      setTotalPages(data.totalPages);
       setCurrentPage(pageToFetch);
       setShowResults(true);
     } catch (err) {
