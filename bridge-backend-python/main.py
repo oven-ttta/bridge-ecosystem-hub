@@ -41,6 +41,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Bridge Ecosystem Hub API"}
+
 class Company(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -65,18 +69,45 @@ class Company(BaseModel):
     website: Optional[str] = None
     objective: Optional[str] = None
 
-@app.get("/api/companies", response_model=List[Company])
-async def list_companies(
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=1000)
-):
-    offset = (page - 1) * limit
+@app.get("/api/tables")
+async def list_tables():
     try:
         async with AsyncSessionLocal() as session:
-            # Execute async query
+            result = await session.execute(text("SHOW TABLES"))
+            tables = [row[0] for row in result.fetchall()]
+            return {"tables": tables}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
+
+@app.get("/api/data/{table_name}")
+async def get_table_data(table_name: str):
+    try:
+        async with AsyncSessionLocal() as session:
+            # Note: Using f-string for table name. In production, validate table_name against a whitelist.
+            # To be safe, we check if the table exists first.
+            table_check = await session.execute(text("SHOW TABLES"))
+            allowed_tables = [row[0] for row in table_check.fetchall()]
+            
+            if table_name not in allowed_tables:
+                raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
+
+            result = await session.execute(text(f"SELECT * FROM `{table_name}`"))
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
+
+@app.get("/api/companies", response_model=List[Company])
+async def list_companies():
+    try:
+        async with AsyncSessionLocal() as session:
+            # Execute async query to fetch all records
             result = await session.execute(
-                text("SELECT * FROM companies LIMIT :limit OFFSET :offset"),
-                {"limit": limit, "offset": offset}
+                text("SELECT * FROM companies")
             )
             # Fetch all rows mapped as dictionaries
             rows = result.mappings().all()
@@ -84,8 +115,9 @@ async def list_companies(
             # Pydantic will seamlessly parse these dicts since populate_by_name=True
             return [dict(row) for row in rows]
     except Exception as e:
-        print(f"Database Error: {e}")
-        raise HTTPException(status_code=500, detail="Database Error")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
