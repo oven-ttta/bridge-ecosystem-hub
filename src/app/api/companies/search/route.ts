@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MeiliSearch } from "meilisearch";
-
-const client = new MeiliSearch({
-    host: process.env.MEILISEARCH_HOST || "http://meilisearch.ovenx.shop",
-    apiKey: process.env.MEILISEARCH_API_KEY || "00a792db8bde947730d19d6175dd71d58614cf68",
-});
+import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
     try {
@@ -13,31 +8,67 @@ export async function GET(req: NextRequest) {
         const region = searchParams.get("region") || "";
         const page = parseInt(searchParams.get("page") || "1", 10);
         const limit = parseInt(searchParams.get("limit") || "10", 10);
+        const offset = (page - 1) * limit;
 
-        let filter: string[] = [];
         const regionMap: Record<string, string> = {
             central: "กรุงเทพมหานคร",
             north: "เชียงใหม่",
             east: "ระยอง",
-            // add more specific mapping if needed based on data
+            northeast: "ขอนแก่น",
+            south: "ภูเก็ต"
         };
 
-        if (region && region !== "all" && regionMap[region]) {
-            filter.push(`location = "${regionMap[region]}"`);
+        let query = "SELECT * FROM companies WHERE 1=1";
+        let countQuery = "SELECT COUNT(*) as total FROM companies WHERE 1=1";
+        const queryParams: any[] = [];
+
+        if (q) {
+            const searchFilter = " AND (companyNameTh LIKE ? OR companyName LIKE ? OR typeofService LIKE ? OR subtypeofService LIKE ?)";
+            query += searchFilter;
+            countQuery += searchFilter;
+            const searchTerm = `%${q}%`;
+            queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
 
-        const res = await client.index("companies").search(q, {
-            filter: filter.length > 0 ? filter : undefined,
-            limit: limit,
-            offset: (page - 1) * limit,
-        });
+        if (region && region !== "all" && regionMap[region]) {
+            query += " AND city = ?";
+            countQuery += " AND city = ?";
+            queryParams.push(regionMap[region]);
+        }
 
-        const hitsCount = res.estimatedTotalHits || res.totalHits || 0;
+        // Search query with pagination
+        query += " LIMIT ? OFFSET ?";
+        const [rows]: any = await db.execute(query, [...queryParams, limit.toString(), offset.toString()]);
+
+        // Count query for pagination
+        const [totalRows]: any = await db.execute(countQuery, queryParams);
+        const totalHits = totalRows[0].total;
+
+        // Map database fields to match the UI's MatchResult type
+        const hits = rows.map((row: any) => ({
+            id: row.id,
+            company: row.companyNameTh,
+            matchScore: Math.floor(Math.random() * 21) + 80, // Mock score for now
+            type: row.is_tech ? "Tech Company" : "Service Company",
+            location: row.city,
+            expertise: [row.typeofService, row.subtypeofService].filter(Boolean),
+            matchReasons: ["ตรงกับความต้องการ", "อยู่ในพื้นที่ที่กำหนด"],
+            verified: row.is_verified === 1,
+            projectsCompleted: Math.floor(Math.random() * 50),
+            avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
+            description: row.objective || row.additionalInfo,
+            contact: {
+                email: "contact@example.com",
+                phone: row.phoneNumber,
+                website: row.website
+            },
+            services: [row.typeofService, row.subtypeofService].filter(Boolean)
+        }));
 
         const payload = {
-            hits: res.hits,
-            totalHits: hitsCount,
-            totalPages: Math.max(1, Math.ceil(hitsCount / limit)),
+            hits: hits,
+            totalHits: totalHits,
+            totalPages: Math.max(1, Math.ceil(totalHits / limit)),
         };
 
         const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64');
@@ -48,3 +79,4 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+

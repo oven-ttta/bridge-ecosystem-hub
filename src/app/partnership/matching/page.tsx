@@ -131,11 +131,15 @@ export default function MatchingPage() {
     }
   };
 
-  // Perform search on component mount
+  // Perform search whenever criteria change (with debounce for text input)
   useEffect(() => {
-    performSearch(1);
+    const timer = setTimeout(() => {
+      performSearch(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchTech, selectedRegion, selectedBudget]);
 
   return (
     <main className="pt-20">
