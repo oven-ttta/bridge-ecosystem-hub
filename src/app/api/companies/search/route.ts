@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
-        const q = searchParams.get("q") || "";
+        const q = (searchParams.get("q") || "").toLowerCase();
         const region = searchParams.get("region") || "";
         const page = parseInt(searchParams.get("page") || "1", 10);
         const limit = parseInt(searchParams.get("limit") || "10", 10);
-        const offset = (page - 1) * limit;
 
         const regionMap: Record<string, string> = {
             central: "กรุงเทพมหานคร",
@@ -18,57 +16,88 @@ export async function GET(req: NextRequest) {
             south: "ภูเก็ต"
         };
 
-        let query = "SELECT * FROM companies WHERE 1=1";
-        let countQuery = "SELECT COUNT(*) as total FROM companies WHERE 1=1";
-        const queryParams: any[] = [];
+        const apiBase = process.env.API || "https://api-bdi.ovenx.shop";
+        const apiUrl = `${apiBase}/api/data/bdi_acc_company`;
+
+        // Fetch all data from external API
+        const res = await fetch(apiUrl, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`API fetch failed: ${res.status}`);
+
+        const allCompanies = await res.json();
+
+        if (!Array.isArray(allCompanies)) {
+            throw new Error("API did not return an array");
+        }
+
+        // Filtering
+        let filtered = allCompanies;
 
         if (q) {
-            const searchFilter = " AND (companyNameTh LIKE ? OR companyName LIKE ? OR typeofService LIKE ? OR subtypeofService LIKE ?)";
-            query += searchFilter;
-            countQuery += searchFilter;
-            const searchTerm = `%${q}%`;
-            queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+            filtered = filtered.filter((c: any) =>
+                (c.company_name_th && c.company_name_th.toLowerCase().includes(q)) ||
+                (c.company_name && c.company_name.toLowerCase().includes(q)) ||
+                (c.typeof_service && c.typeof_service.toLowerCase().includes(q)) ||
+                (c.subtypeof_service && c.subtypeof_service.toLowerCase().includes(q)) ||
+                (c.objective && c.objective.toLowerCase().includes(q)) ||
+                (c.additional_info && c.additional_info.toLowerCase().includes(q))
+            );
         }
 
         if (region && region !== "all" && regionMap[region]) {
-            query += " AND city = ?";
-            countQuery += " AND city = ?";
-            queryParams.push(regionMap[region]);
+            filtered = filtered.filter((c: any) => c.city === regionMap[region]);
         }
 
-        // Search query with pagination
-        query += " LIMIT ? OFFSET ?";
-        const [rows]: any = await db.execute(query, [...queryParams, limit.toString(), offset.toString()]);
+        const totalHits = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalHits / limit));
+        const offset = (page - 1) * limit;
+        const paginated = filtered.slice(offset, offset + limit);
 
-        // Count query for pagination
-        const [totalRows]: any = await db.execute(countQuery, queryParams);
-        const totalHits = totalRows[0].total;
+        // Helper to parse service strings which might be JSON arrays
+        const parseServices = (val: any) => {
+            if (!val) return [];
+            try {
+                if (typeof val === 'string' && val.startsWith('[')) {
+                    const parsed = JSON.parse(val);
+                    return Array.isArray(parsed) ? parsed.map(String) : [String(val)];
+                }
+                return [String(val)];
+            } catch (e) {
+                return [String(val)];
+            }
+        };
 
-        // Map database fields to match the UI's MatchResult type
-        const hits = rows.map((row: any) => ({
-            id: row.id,
-            company: row.companyNameTh,
-            matchScore: Math.floor(Math.random() * 21) + 80, // Mock score for now
-            type: row.is_tech ? "Tech Company" : "Service Company",
-            location: row.city,
-            expertise: [row.typeofService, row.subtypeofService].filter(Boolean),
-            matchReasons: ["ตรงกับความต้องการ", "อยู่ในพื้นที่ที่กำหนด"],
-            verified: row.is_verified === 1,
-            projectsCompleted: Math.floor(Math.random() * 50),
-            avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
-            description: row.objective || row.additionalInfo,
-            contact: {
-                email: "contact@example.com",
-                phone: row.phoneNumber,
-                website: row.website
-            },
-            services: [row.typeofService, row.subtypeofService].filter(Boolean)
-        }));
+        // Map API fields to MatchResult type
+        const hits = paginated.map((row: any) => {
+            const typeofService = parseServices(row.typeof_service);
+            const subtypeofService = parseServices(row.subtypeof_service);
+            const expertise = Array.from(new Set([...typeofService, ...subtypeofService]))
+                .filter(s => s && s !== "0" && s !== "null");
+
+            return {
+                id: row.id,
+                company: row.company_name_th || row.company_name,
+                matchScore: Math.floor(Math.random() * 21) + 80, // Mock score
+                type: row.is_tech ? "Tech Company" : "Service Company",
+                location: row.city || row.location || "N/A",
+                expertise: expertise,
+                matchReasons: ["ตรงกับความต้องการ", "อยู่ในพื้นที่ที่กำหนด"],
+                verified: row.is_verified === 1 || row.is_verified === true,
+                projectsCompleted: Math.floor(Math.random() * 50),
+                avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
+                description: row.objective || row.additional_info,
+                contact: {
+                    email: "contact@example.com",
+                    phone: row.phone_number || row.office_number || "N/A",
+                    website: row.website || ""
+                },
+                services: expertise
+            };
+        });
 
         const payload = {
             hits: hits,
             totalHits: totalHits,
-            totalPages: Math.max(1, Math.ceil(totalHits / limit)),
+            totalPages: totalPages,
         };
 
         const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64');
@@ -79,4 +108,5 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+
 
