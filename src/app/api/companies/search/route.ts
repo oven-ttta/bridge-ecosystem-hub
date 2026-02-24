@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
             south: "ภูเก็ต"
         };
 
-        const apiBase = process.env.API || "https://api-bdi.ovenx.shop";
+        const apiBase = process.env.API;
         const apiUrl = `${apiBase}/api/data/bdi_acc_company`;
 
         // Fetch all data from external API
