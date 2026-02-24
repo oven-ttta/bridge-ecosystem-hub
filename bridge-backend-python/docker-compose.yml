@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  bridge-backend-python:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bridge-backend-python:latest
+    container_name: bridge-backend-python
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
