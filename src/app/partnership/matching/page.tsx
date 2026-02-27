@@ -97,7 +97,19 @@ type CompanyHit = {
   objective: string;
   is_verified: number | null;
   tsic: string;
+  new_s_curve: "ROBOTICS" | "AVIATION_LOGISTICS" | "BIOFUEL_BIOCHEMICAL" | "DIGITAL" | "MEDICAL_HUB" | null;
   _rankingScore?: number;
+};
+
+// --- New S-Curve Config ---
+type SCurveValue = "ROBOTICS" | "AVIATION_LOGISTICS" | "BIOFUEL_BIOCHEMICAL" | "DIGITAL" | "MEDICAL_HUB";
+
+const S_CURVE_CONFIG: Record<SCurveValue, { label: string; color: string }> = {
+  ROBOTICS:           { label: "หุ่นยนต์", color: "bg-orange-100 text-orange-700 border-orange-200" },
+  AVIATION_LOGISTICS: { label: "การบิน & โลจิสติกส์", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  BIOFUEL_BIOCHEMICAL:{ label: "เชื้อเพลิงชีวภาพ", color: "bg-lime-100 text-lime-700 border-lime-200" },
+  DIGITAL:            { label: "ดิจิทัล", color: "bg-violet-100 text-violet-700 border-violet-200" },
+  MEDICAL_HUB:        { label: "การแพทย์", color: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
 // --- Catalog Type Config ---
@@ -217,6 +229,7 @@ const THAI_PROVINCES = [
 function SearchContent() {
   const [selectedCity, setSelectedCity] = useState("");
   const [provinceOpen, setProvinceOpen] = useState(false);
+  const [selectedSCurve, setSelectedSCurve] = useState<SCurveValue | "">("");
   const [selectedCatalogType, setSelectedCatalogType] = useState("all");
   const [selectedCompany, setSelectedCompany] = useState<CompanyHit | null>(null);
   const [catalogMap, setCatalogMap] = useState<Map<number, CompanyCatalog>>(new Map());
@@ -258,8 +271,12 @@ function SearchContent() {
       .catch(console.error);
   }, []);
 
-  // Build filter string for city
-  const filterString = selectedCity ? `city = "${selectedCity}"` : "";
+  // Build filter string
+  const filters = [
+    selectedCity ? `city = "${selectedCity}"` : "",
+    selectedSCurve ? `new_s_curve = "${selectedSCurve}"` : "",
+  ].filter(Boolean).join(" AND ");
+  const filterString = filters;
 
   // Client-side filter by catalog type
   const filteredCompanies = selectedCatalogType === "all"
@@ -364,7 +381,29 @@ function SearchContent() {
             </div>
           </div>
 
-          {/* Row 2: Catalog Type Filter */}
+          {/* Row 2: New S-Curve Filter */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground shrink-0">New S-Curve:</span>
+            <button
+              onClick={() => setSelectedSCurve("")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200
+                ${!selectedSCurve ? "bg-primary text-primary-foreground border-primary shadow-sm" : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"}`}
+            >
+              ทั้งหมด
+            </button>
+            {(Object.entries(S_CURVE_CONFIG) as [SCurveValue, typeof S_CURVE_CONFIG[SCurveValue]][]).map(([key, cfg]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedSCurve(selectedSCurve === key ? "" : key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200
+                  ${selectedSCurve === key ? `${cfg.color} shadow-sm` : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"}`}
+              >
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Row 3: Catalog Type Filter */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium text-muted-foreground shrink-0">ประเภทผู้ให้บริการ:</span>
             {(["all", "product", "service", "both"] as const).map((type) => (
