@@ -39,10 +39,13 @@ import {
   Package,
   Wrench,
   LayoutGrid,
+  Landmark, // NEW: icon for business size badge
 } from "lucide-react";
 
 // --- Types ---
 type CatalogType = "product" | "service" | "both";
+// NEW: Business Size type from API
+type BusinessSize = "Micro" | "Small" | "Medium" | "Large" | "Unknown";
 
 type MatchResult = {
   id: number;
@@ -50,6 +53,7 @@ type MatchResult = {
   matchScore: number;
   type: string;
   catalogType: CatalogType; // ← NEW: ประเภทใน Catalog
+  businessSize?: BusinessSize; // NEW: ขนาดธุรกิจจาก registerCapital
   location: string;
   expertise: string[];
   matchReasons: string[];
@@ -93,6 +97,49 @@ const CATALOG_TYPE_CONFIG = {
     badgeBg: "bg-violet-500",
   },
 };
+
+// --- NEW: Business Size Config ---
+const BUSINESS_SIZE_CONFIG: Record<string, { label: string; sublabel: string; color: string }> = {
+  Micro: {
+    label: "Micro",
+    sublabel: "< 1.8M",
+    color: "bg-rose-100 text-rose-700 border-rose-200",
+  },
+  Small: {
+    label: "Small",
+    sublabel: "1.8M – 50M",
+    color: "bg-sky-100 text-sky-700 border-sky-200",
+  },
+  Medium: {
+    label: "Medium",
+    sublabel: "50M – 500M",
+    color: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  },
+  Large: {
+    label: "Large",
+    sublabel: "> 500M",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  },
+  Unknown: {
+    label: "N/A",
+    sublabel: "ไม่ทราบ",
+    color: "bg-gray-100 text-gray-500 border-gray-200",
+  },
+};
+
+// --- NEW: Business Size Badge Component ---
+function BusinessSizeBadge({ size }: { size?: string }) {
+  const config = BUSINESS_SIZE_CONFIG[size || "Unknown"] || BUSINESS_SIZE_CONFIG.Unknown;
+  return (
+    <Badge
+      variant="outline"
+      className={`text-xs font-medium gap-1 ${config.color}`}
+    >
+      <Landmark className="w-3 h-3" />
+      {config.label}
+    </Badge>
+  );
+}
 
 // --- Catalog Type Badge Component ---
 function CatalogTypeBadge({ type }: { type?: string }) {
@@ -394,6 +441,8 @@ export default function MatchingPage() {
                             )}
                             {/* Catalog Type Badge ← NEW */}
                             <CatalogTypeBadge type={result.catalogType} />
+                            {/* NEW: Business Size Badge */}
+                            <BusinessSizeBadge size={result.businessSize} />
                           </div>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                             <span className="flex items-center gap-1">
@@ -538,6 +587,8 @@ export default function MatchingPage() {
                       )}
                       {/* Catalog Type Badge in Dialog ← NEW */}
                       <CatalogTypeBadge type={selectedCompany.catalogType} />
+                      {/* NEW: Business Size Badge in Dialog */}
+                      <BusinessSizeBadge size={selectedCompany.businessSize} />
                     </DialogTitle>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                       <span className="flex items-center gap-1">

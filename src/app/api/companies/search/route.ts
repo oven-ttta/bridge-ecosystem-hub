@@ -1,5 +1,84 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// ============================================================
+// NEW: Business Size Classification Logic
+// ============================================================
+
+// NEW: Possible business size tiers
+type BusinessSize = "Micro" | "Small" | "Medium" | "Large" | "Unknown";
+
+/**
+ * NEW: Classify a partner's business size based on registerCapital (in THB).
+ *
+ *  - null / undefined / NaN  → "Unknown"  (Fallback logic)
+ *  - < 1,800,000             → "Micro"
+ *  - 1,800,000 – 50,000,000  → "Small"
+ *  - 50,000,000 – 500,000,000→ "Medium"
+ *  - > 500,000,000           → "Large"
+ */
+function classifyBusinessSize(registerCapital: unknown): BusinessSize {
+    // NEW: Gracefully handle null, undefined, non-numeric values
+    if (registerCapital == null) return "Unknown";
+    const cap = typeof registerCapital === "number"
+        ? registerCapital
+        : parseFloat(String(registerCapital));
+    if (isNaN(cap)) return "Unknown";
+
+    if (cap < 1_800_000) return "Micro";
+    if (cap <= 50_000_000) return "Small";
+    if (cap <= 500_000_000) return "Medium";
+    return "Large";
+}
+
+// NEW: Numeric ordering for size tiers (used in distance calculation)
+const SIZE_ORDER: Record<BusinessSize, number> = {
+    Micro: 0,
+    Small: 1,
+    Medium: 2,
+    Large: 3,
+    Unknown: -1, // sentinel – will be handled separately
+};
+
+/**
+ * NEW: Compute Size_Fit_Score (0-100).
+ *
+ * When the user provides a budget, we classify it into the same tier system
+ * and reward partners whose tier is close to the user's tier.
+ *
+ *   exact match       → 100
+ *   1 tier apart       →  70
+ *   2 tiers apart      →  40
+ *   3 tiers apart      →  15
+ *   either side Unknown→  50  (neutral – no penalty, no reward)
+ *
+ * If the user did NOT provide a budget param, every partner receives a
+ * neutral score of 50 so the existing behaviour is effectively unchanged.
+ */
+function computeSizeFitScore(
+    partnerSize: BusinessSize,
+    userSize: BusinessSize | null,
+): number {
+    // NEW: No user budget supplied → neutral score
+    if (userSize === null) return 50;
+
+    // NEW: Either side is Unknown → neutral
+    if (partnerSize === "Unknown" || userSize === "Unknown") return 50;
+
+    const distance = Math.abs(SIZE_ORDER[partnerSize] - SIZE_ORDER[userSize]);
+
+    switch (distance) {
+        case 0: return 100; // exact match
+        case 1: return 70;
+        case 2: return 40;
+        case 3: return 15;
+        default: return 15;
+    }
+}
+
+// ============================================================
+// END: Business Size Classification Logic
+// ============================================================
+
 export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
@@ -7,6 +86,12 @@ export async function GET(req: NextRequest) {
         const region = searchParams.get("region") || "";
         const page = parseInt(searchParams.get("page") || "1", 10);
         const limit = parseInt(searchParams.get("limit") || "10", 10);
+
+        // NEW: Optional budget parameter – classifies the user's implied size tier
+        const budgetParam = searchParams.get("budget");
+        const userBudgetSize: BusinessSize | null = budgetParam
+            ? classifyBusinessSize(parseFloat(budgetParam))
+            : null;
 
         const regionMap: Record<string, string> = {
             central: "กรุงเทพมหานคร",
@@ -29,7 +114,7 @@ export async function GET(req: NextRequest) {
         const catalogs: any[] = Array.isArray(data?.company_catalog) ? data.company_catalog : [];
 
         // precompute a map of company_id -> catalog summary
-        const catalogMap: Record<number, {products: string[]; services: string[]}> = {};
+        const catalogMap: Record<number, { products: string[]; services: string[] }> = {};
         catalogs.forEach((cat) => {
             if (!cat.company_id) return;
             const entry = catalogMap[cat.company_id] || { products: [], services: [] };
@@ -108,14 +193,35 @@ export async function GET(req: NextRequest) {
             else if (productsArr.length) catalogType = "product";
             else if (servicesArr.length) catalogType = "service";
 
+            // NEW: Classify partner business size from registerCapital
+            const partnerSize = classifyBusinessSize(
+                row.register_capital ?? row.registerCapital
+            );
+
+            // NEW: Compute Size_Fit_Score (0-100)
+            const sizeFitScore = computeSizeFitScore(partnerSize, userBudgetSize);
+
+            // NEW: Blend the original base score with Size_Fit_Score
+            //   baseScore weight = 70%, sizeFitScore weight = 30%
+            const baseScore = Math.floor(Math.random() * 21) + 80; // original mock score
+            const blendedScore = Math.round(baseScore * 0.7 + sizeFitScore * 0.3);
+            // Clamp to 0-100 range
+            const matchScore = Math.min(100, Math.max(0, blendedScore));
+
+            // NEW: Build matchReasons – inject size-related reason when relevant
+            const matchReasons: string[] = ["ตรงกับความต้องการ", "อยู่ในพื้นที่ที่กำหนด"];
+            if (userBudgetSize && sizeFitScore >= 70) {
+                matchReasons.push("ขนาดธุรกิจเหมาะสมกับงบประมาณ"); // NEW: Size fit reason
+            }
+
             return {
                 id: row.id,
                 company: row.company_name_th || row.company_name,
-                matchScore: Math.floor(Math.random() * 21) + 80, // Mock score
+                matchScore, // NEW: now uses blended score with Size_Fit_Score
                 type: row.is_tech ? "Tech Company" : "Service Company",
                 location: row.city || row.location || "N/A",
                 expertise: expertise,
-                matchReasons: ["ตรงกับความต้องการ", "อยู่ในพื้นที่ที่กำหนด"],
+                matchReasons, // NEW: may include size-fit reason
                 verified: row.is_verified === 1 || row.is_verified === true,
                 projectsCompleted: Math.floor(Math.random() * 50),
                 avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
@@ -128,6 +234,7 @@ export async function GET(req: NextRequest) {
                 services: servicesArr, // explicit service catalog names
                 products: productsArr, // explicit product catalog names
                 catalogType,
+                businessSize: partnerSize, // NEW: exposed for frontend display
             };
         });
 
