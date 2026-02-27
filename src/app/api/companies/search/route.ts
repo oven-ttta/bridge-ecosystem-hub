@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
                 projectsCompleted: Math.floor(Math.random() * 50),
                 avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
                 description: row.objective || row.additional_info,
+                tsic: row.tsic || "",
                 contact: {
                     email: "contact@example.com",
                     phone: row.phone_number || row.office_number || "N/A",

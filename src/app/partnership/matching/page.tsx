@@ -36,6 +36,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Hash,
   Package,
   Wrench,
   LayoutGrid,
@@ -57,6 +58,7 @@ type MatchResult = {
   projectsCompleted: number;
   avgRating: number;
   description?: string;
+  tsic?: string;
   contact?: {
     email: string;
     phone: string;
@@ -379,6 +381,41 @@ export default function MatchingPage() {
                       <div className="text-xs text-white/80 font-medium">Match Score</div>
                     </div>
 
+                      {/* Content */}
+                      <div className="flex-1 p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-semibold text-foreground">
+                                {result.company}
+                              </h3>
+                              {result.verified && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-emerald-100 text-emerald-700"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />{" "}
+                                  Verified
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Building2 className="w-3 h-3" /> {result.type}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> {result.location}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />{" "}
+                                {result.projectsCompleted} โครงการ
+                              </span>
+                              {result.tsic && (
+                                <span className="flex items-center gap-1">
+                                  <Hash className="w-3 h-3" /> TSIC: {result.tsic}
+                                </span>
+                              )}
+                            </div>
                     {/* Content */}
                     <div className="flex-1 p-6">
                       <div className="flex items-start justify-between mb-3">
@@ -629,6 +666,19 @@ export default function MatchingPage() {
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {selectedCompany.description}
                     </p>
+                  </div>
+                )}
+
+                {/* TSIC Code */}
+                {selectedCompany.tsic && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">
+                      รหัส TSIC
+                    </h4>
+                    <Badge className="text-sm bg-blue-100 text-blue-700 border-blue-200">
+                      <Hash className="w-3 h-3 mr-1" />
+                      {selectedCompany.tsic}
+                    </Badge>
                   </div>
                 )}
 
