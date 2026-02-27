@@ -17,17 +17,29 @@ export async function GET(req: NextRequest) {
         };
 
         const apiBase = process.env.API;
-        const apiUrl = `${apiBase}/api/data/bdi_acc_company_with_tsic`;
+        const apiUrl = `${apiBase}/api/all-data`;
 
-        // Fetch all data from external API
+        // Fetch all data (companies + catalogs) from external API
         const res = await fetch(apiUrl, { cache: 'no-store' });
         if (!res.ok) throw new Error(`API fetch failed: ${res.status}`);
 
-        const allCompanies = await res.json();
+        const data = await res.json();
+        // endpoint returns object with several arrays, we care about bdi_acc_company and company_catalog
+        const allCompanies: any[] = Array.isArray(data?.bdi_acc_company) ? data.bdi_acc_company : [];
+        const catalogs: any[] = Array.isArray(data?.company_catalog) ? data.company_catalog : [];
 
-        if (!Array.isArray(allCompanies)) {
-            throw new Error("API did not return an array");
-        }
+        // precompute a map of company_id -> catalog summary
+        const catalogMap: Record<number, {products: string[]; services: string[]}> = {};
+        catalogs.forEach((cat) => {
+            if (!cat.company_id) return;
+            const entry = catalogMap[cat.company_id] || { products: [], services: [] };
+            if (cat.type === 'product') {
+                entry.products.push(cat.name);
+            } else if (cat.type === 'service') {
+                entry.services.push(cat.name);
+            }
+            catalogMap[cat.company_id] = entry;
+        });
 
         // Filtering
         let filtered = allCompanies;
@@ -45,6 +57,20 @@ export async function GET(req: NextRequest) {
 
         if (region && region !== "all" && regionMap[region]) {
             filtered = filtered.filter((c: any) => c.city === regionMap[region]);
+        }
+
+        // apply catalogType filter if provided
+        const catalogTypeFilter = (searchParams.get("catalogType") || "all").toLowerCase();
+        if (catalogTypeFilter && catalogTypeFilter !== "all") {
+            filtered = filtered.filter((c: any) => {
+                const cat = catalogMap[c.id] || { products: [], services: [] };
+                const hasP = cat.products.length > 0;
+                const hasS = cat.services.length > 0;
+                if (catalogTypeFilter === "product") return hasP;
+                if (catalogTypeFilter === "service") return hasS;
+                if (catalogTypeFilter === "both") return hasP && hasS;
+                return true;
+            });
         }
 
         const totalHits = filtered.length;
@@ -73,6 +99,15 @@ export async function GET(req: NextRequest) {
             const expertise = Array.from(new Set([...typeofService, ...subtypeofService]))
                 .filter(s => s && s !== "0" && s !== "null");
 
+            // attach catalog info
+            const cat = catalogMap[row.id] || { products: [], services: [] };
+            const productsArr = cat.products;
+            const servicesArr = cat.services;
+            let catalogType: "product" | "service" | "both" = "service";
+            if (productsArr.length && servicesArr.length) catalogType = "both";
+            else if (productsArr.length) catalogType = "product";
+            else if (servicesArr.length) catalogType = "service";
+
             return {
                 id: row.id,
                 company: row.company_name_th || row.company_name,
@@ -91,7 +126,9 @@ export async function GET(req: NextRequest) {
                     phone: row.phone_number || row.office_number || "N/A",
                     website: row.website || ""
                 },
-                services: expertise
+                services: servicesArr, // explicit service catalog names
+                products: productsArr, // explicit product catalog names
+                catalogType,
             };
         });
 
