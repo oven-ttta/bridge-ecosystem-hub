@@ -45,6 +45,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Hash,
 } from "lucide-react";
 
 // --- Type ---
@@ -60,6 +61,7 @@ type MatchResult = {
   projectsCompleted: number;
   avgRating: number;
   description?: string;
+  tsic?: string;
   contact?: {
     email: string;
     phone: string;
@@ -306,6 +308,11 @@ export default function MatchingPage() {
                                 <Users className="w-3 h-3" />{" "}
                                 {result.projectsCompleted} โครงการ
                               </span>
+                              {result.tsic && (
+                                <span className="flex items-center gap-1">
+                                  <Hash className="w-3 h-3" /> TSIC: {result.tsic}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <Button
@@ -493,6 +500,19 @@ export default function MatchingPage() {
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {selectedCompany.description}
                     </p>
+                  </div>
+                )}
+
+                {/* TSIC Code */}
+                {selectedCompany.tsic && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">
+                      รหัส TSIC
+                    </h4>
+                    <Badge className="text-sm bg-blue-100 text-blue-700 border-blue-200">
+                      <Hash className="w-3 h-3 mr-1" />
+                      {selectedCompany.tsic}
+                    </Badge>
                   </div>
                 )}
 
