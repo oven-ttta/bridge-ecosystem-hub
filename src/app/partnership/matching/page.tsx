@@ -78,6 +78,7 @@ type CompanyHit = {
   objective: string;
   is_verified: number | null;
   tsic: string;
+  _rankingScore?: number;
 };
 
 // --- Business Size ---
@@ -150,9 +151,19 @@ function SearchContent() {
     ? `city = "${selectedCity}"`
     : "";
 
+  // Score helpers
+  const scorePercent = (score?: number) => Math.round((score ?? 1) * 100);
+  const scoreGradient = (score?: number) => {
+    const s = score ?? 1;
+    if (s >= 0.8) return "from-emerald-600 to-emerald-500";
+    if (s >= 0.6) return "from-primary to-primary/80";
+    if (s >= 0.4) return "from-amber-500 to-amber-400";
+    return "from-rose-500 to-rose-400";
+  };
+
   return (
     <main className="pt-20">
-      <Configure filters={filterString} hitsPerPage={12} />
+      <Configure filters={filterString} hitsPerPage={12} {...({ meiliSearchParams: { showRankingScore: true } } as any)} />
 
       {/* Header */}
       <section className="py-16 bg-gradient-to-br from-emerald-50 via-background to-primary/5 relative overflow-hidden">
@@ -245,8 +256,13 @@ function SearchContent() {
               >
                 <CardContent className="p-0">
                   <div className="flex flex-col lg:flex-row">
-                    {/* Left accent strip */}
-                    <div className="lg:w-2 bg-gradient-to-b from-primary to-primary/60 shrink-0" />
+                    {/* Ranking Score */}
+                    <div className={`lg:w-28 bg-gradient-to-br ${scoreGradient(company._rankingScore)} p-5 flex flex-col items-center justify-center text-white shrink-0`}>
+                      <div className="text-4xl font-bold tabular-nums">
+                        {scorePercent(company._rankingScore)}
+                      </div>
+                      <div className="text-xs text-white/80 font-medium mt-1">Match Score</div>
+                    </div>
 
                     {/* Content */}
                     <div className="flex-1 p-6">
