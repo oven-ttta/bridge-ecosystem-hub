@@ -13,13 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -200,21 +196,27 @@ function formatCapital(capital?: number) {
   return `${capital.toLocaleString("th-TH")} บาท`;
 }
 
-// --- City Filter options ---
-const CITY_OPTIONS = [
-  { value: "all", label: "ทั่วประเทศ" },
-  { value: "กรุงเทพมหานคร", label: "กรุงเทพมหานคร" },
-  { value: "เชียงใหม่", label: "เชียงใหม่" },
-  { value: "ระยอง", label: "ระยอง" },
-  { value: "ขอนแก่น", label: "ขอนแก่น" },
-  { value: "ภูเก็ต", label: "ภูเก็ต" },
-  { value: "นนทบุรี", label: "นนทบุรี" },
-  { value: "ปทุมธานี", label: "ปทุมธานี" },
+// --- Thai provinces (77 จังหวัด) ---
+const THAI_PROVINCES = [
+  "กรุงเทพมหานคร", "สมุทรปราการ", "นนทบุรี", "ปทุมธานี", "พระนครศรีอยุธยา",
+  "อ่างทอง", "ลพบุรี", "สิงห์บุรี", "ชัยนาท", "สระบุรี", "ชลบุรี", "ระยอง",
+  "จันทบุรี", "ตราด", "ฉะเชิงเทรา", "ปราจีนบุรี", "นครนายก", "สระแก้ว",
+  "นครราชสีมา", "บุรีรัมย์", "สุรินทร์", "ศรีสะเกษ", "อุบลราชธานี", "ยโสธร",
+  "ชัยภูมิ", "อำนาจเจริญ", "หนองบัวลำภู", "ขอนแก่น", "อุดรธานี", "เลย",
+  "หนองคาย", "มหาสารคาม", "ร้อยเอ็ด", "กาฬสินธุ์", "สกลนคร", "นครพนม",
+  "มุกดาหาร", "เชียงใหม่", "ลำพูน", "ลำปาง", "อุตรดิตถ์", "แพร่", "น่าน",
+  "พะเยา", "เชียงราย", "แม่ฮ่องสอน", "นครสวรรค์", "อุทัยธานี", "กำแพงเพชร",
+  "ตาก", "สุโขทัย", "พิษณุโลก", "พิจิตร", "เพชรบูรณ์", "ราชบุรี", "กาญจนบุรี",
+  "สุพรรณบุรี", "นครปฐม", "สมุทรสาคร", "สมุทรสงคราม", "เพชรบุรี",
+  "ประจวบคีรีขันธ์", "นครศรีธรรมราช", "กระบี่", "พังงา", "ภูเก็ต",
+  "สุราษฎร์ธานี", "ระนอง", "ชุมพร", "สงขลา", "สตูล", "ตรัง", "พัทลุง",
+  "ปัตตานี", "ยะลา", "นราธิวาส", "บึงกาฬ",
 ];
 
 // --- Inner component (uses InstantSearch hooks) ---
 function SearchContent() {
-  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [provinceOpen, setProvinceOpen] = useState(false);
   const [selectedCatalogType, setSelectedCatalogType] = useState("all");
   const [selectedCompany, setSelectedCompany] = useState<CompanyHit | null>(null);
   const [catalogMap, setCatalogMap] = useState<Map<number, CompanyCatalog>>(new Map());
@@ -257,9 +259,7 @@ function SearchContent() {
   }, []);
 
   // Build filter string for city
-  const filterString = selectedCity && selectedCity !== "all"
-    ? `city = "${selectedCity}"`
-    : "";
+  const filterString = selectedCity ? `city = "${selectedCity}"` : "";
 
   // Client-side filter by catalog type
   const filteredCompanies = selectedCatalogType === "all"
@@ -330,17 +330,37 @@ function SearchContent() {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">จังหวัด</label>
-              <Select value={selectedCity} onValueChange={setSelectedCity}>
-                <SelectTrigger className="w-[200px] h-12">
-                  <MapPin className="w-4 h-4 mr-2 shrink-0" />
-                  <SelectValue placeholder="เลือกจังหวัด" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CITY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={provinceOpen} onOpenChange={setProvinceOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-52 h-12 justify-between font-normal">
+                    <span className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                      {selectedCity || "ทั่วประเทศ"}
+                    </span>
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="ค้นหาจังหวัด..." />
+                    <CommandList>
+                      <CommandEmpty>ไม่พบจังหวัด</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="__all__" onSelect={() => { setSelectedCity(""); setProvinceOpen(false); }}>
+                          <Check className={`mr-2 w-4 h-4 ${!selectedCity ? "opacity-100" : "opacity-0"}`} />
+                          ทั่วประเทศ
+                        </CommandItem>
+                        {THAI_PROVINCES.map((p) => (
+                          <CommandItem key={p} value={p} onSelect={() => { setSelectedCity(p); setProvinceOpen(false); }}>
+                            <Check className={`mr-2 w-4 h-4 ${selectedCity === p ? "opacity-100" : "opacity-0"}`} />
+                            {p}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
