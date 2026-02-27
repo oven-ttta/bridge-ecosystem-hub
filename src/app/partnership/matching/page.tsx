@@ -36,6 +36,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Hash,
   Package,
   Wrench,
   LayoutGrid,
@@ -61,6 +62,7 @@ type MatchResult = {
   projectsCompleted: number;
   avgRating: number;
   description?: string;
+  tsic?: string;
   contact?: {
     email: string;
     phone: string;
@@ -232,20 +234,7 @@ export default function MatchingPage() {
       const res = await fetch(`/api/companies/search?${queryParams.toString()}`);
       if (!res.ok) throw new Error("Network latency or failed fetch");
 
-      const rawData = await res.json();
-      let data;
-
-      if (rawData._data) {
-        const binaryString = atob(rawData._data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const decodedText = new TextDecoder().decode(bytes);
-        data = JSON.parse(decodedText);
-      } else {
-        data = rawData;
-      }
+      const data = await res.json();
 
       setMatchResults(data.hits as MatchResult[]);
       setTotalHits(data.totalHits);
@@ -406,6 +395,7 @@ export default function MatchingPage() {
                     Service
                   </Badge>
                 )}
+                
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
                   พบ {totalHits} รายที่เหมาะสม
                 </Badge>
@@ -425,7 +415,6 @@ export default function MatchingPage() {
                       <div className="text-4xl font-bold">{result.matchScore}</div>
                       <div className="text-xs text-white/80 font-medium">Match Score</div>
                     </div>
-
                     {/* Content */}
                     <div className="flex-1 p-6">
                       <div className="flex items-start justify-between mb-3">
@@ -443,6 +432,11 @@ export default function MatchingPage() {
                             <CatalogTypeBadge type={result.catalogType} />
                             {/* NEW: Business Size Badge */}
                             <BusinessSizeBadge size={result.businessSize} />
+                            {result.tsic && (
+                              <span className="flex items-center gap-1 border border-blue-400 text-blue-700 bg-blue-100 text-xs px-1.5 py-0.5 rounded-xl">
+                                <Hash className="w-3 h-3" /> TSIC: {result.tsic}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                             <span className="flex items-center gap-1">
@@ -455,6 +449,7 @@ export default function MatchingPage() {
                               <Users className="w-3 h-3" /> {result.projectsCompleted} โครงการ
                             </span>
                           </div>
+
                         </div>
                         <Button
                           className="bg-primary hover:bg-primary/90 shrink-0"
@@ -680,6 +675,19 @@ export default function MatchingPage() {
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {selectedCompany.description}
                     </p>
+                  </div>
+                )}
+
+                {/* TSIC Code */}
+                {selectedCompany.tsic && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">
+                      รหัส TSIC
+                    </h4>
+                    <Badge className="text-sm bg-blue-100 text-blue-700 border-blue-200">
+                      <Hash className="w-3 h-3 mr-1" />
+                      {selectedCompany.tsic}
+                    </Badge>
                   </div>
                 )}
 

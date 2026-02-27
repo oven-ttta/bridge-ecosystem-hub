@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
         };
 
         const apiBase = process.env.API;
+        // use the combined endpoint which returns multiple arrays
         const apiUrl = `${apiBase}/api/all-data`;
 
         // Fetch all data (companies + catalogs) from external API
@@ -109,8 +110,14 @@ export async function GET(req: NextRequest) {
         if (!res.ok) throw new Error(`API fetch failed: ${res.status}`);
 
         const data = await res.json();
-        // endpoint returns object with several arrays, we care about bdi_acc_company and company_catalog
-        const allCompanies: any[] = Array.isArray(data?.bdi_acc_company) ? data.bdi_acc_company : [];
+        // endpoint returns object with several arrays. choose the most complete company list.
+        // prefer bdi_acc_company_with_tsic since it includes tsic codes, fall back to bdi_acc_company if necessary.
+        let allCompanies: any[] = [];
+        if (Array.isArray(data?.bdi_acc_company_with_tsic)) {
+            allCompanies = data.bdi_acc_company_with_tsic;
+        } else if (Array.isArray(data?.bdi_acc_company)) {
+            allCompanies = data.bdi_acc_company;
+        }
         const catalogs: any[] = Array.isArray(data?.company_catalog) ? data.company_catalog : [];
 
         // precompute a map of company_id -> catalog summary
@@ -226,6 +233,7 @@ export async function GET(req: NextRequest) {
                 projectsCompleted: Math.floor(Math.random() * 50),
                 avgRating: (Math.random() * 1.5 + 3.5).toFixed(1),
                 description: row.objective || row.additional_info,
+                tsic: row.tsic || "",
                 contact: {
                     email: "contact@example.com",
                     phone: row.phone_number || row.office_number || "N/A",
@@ -244,9 +252,8 @@ export async function GET(req: NextRequest) {
             totalPages: totalPages,
         };
 
-        const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64');
-
-        return NextResponse.json({ _data: encodedPayload });
+        // return as plain JSON, no encoding
+        return NextResponse.json(payload);
     } catch (error) {
         console.error("Search API Error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
