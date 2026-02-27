@@ -187,20 +187,7 @@ export default function MatchingPage() {
       const res = await fetch(`/api/companies/search?${queryParams.toString()}`);
       if (!res.ok) throw new Error("Network latency or failed fetch");
 
-      const rawData = await res.json();
-      let data;
-
-      if (rawData._data) {
-        const binaryString = atob(rawData._data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const decodedText = new TextDecoder().decode(bytes);
-        data = JSON.parse(decodedText);
-      } else {
-        data = rawData;
-      }
+      const data = await res.json();
 
       setMatchResults(data.hits as MatchResult[]);
       setTotalHits(data.totalHits);
@@ -361,6 +348,7 @@ export default function MatchingPage() {
                     Service
                   </Badge>
                 )}
+                
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
                   พบ {totalHits} รายที่เหมาะสม
                 </Badge>
@@ -380,42 +368,6 @@ export default function MatchingPage() {
                       <div className="text-4xl font-bold">{result.matchScore}</div>
                       <div className="text-xs text-white/80 font-medium">Match Score</div>
                     </div>
-
-                      {/* Content */}
-                      <div className="flex-1 p-6">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-semibold text-foreground">
-                                {result.company}
-                              </h3>
-                              {result.verified && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-xs bg-emerald-100 text-emerald-700"
-                                >
-                                  <CheckCircle2 className="w-3 h-3 mr-1" />{" "}
-                                  Verified
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Building2 className="w-3 h-3" /> {result.type}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> {result.location}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />{" "}
-                                {result.projectsCompleted} โครงการ
-                              </span>
-                              {result.tsic && (
-                                <span className="flex items-center gap-1">
-                                  <Hash className="w-3 h-3" /> TSIC: {result.tsic}
-                                </span>
-                              )}
-                            </div>
                     {/* Content */}
                     <div className="flex-1 p-6">
                       <div className="flex items-start justify-between mb-3">
@@ -431,6 +383,11 @@ export default function MatchingPage() {
                             )}
                             {/* Catalog Type Badge ← NEW */}
                             <CatalogTypeBadge type={result.catalogType} />
+                            {result.tsic && (
+                              <span className="flex items-center gap-1 border border-blue-400 text-blue-700 bg-blue-100 text-xs px-1.5 py-0.5 rounded-xl">
+                                <Hash className="w-3 h-3" /> TSIC: {result.tsic}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                             <span className="flex items-center gap-1">
@@ -443,6 +400,7 @@ export default function MatchingPage() {
                               <Users className="w-3 h-3" /> {result.projectsCompleted} โครงการ
                             </span>
                           </div>
+
                         </div>
                         <Button
                           className="bg-primary hover:bg-primary/90 shrink-0"
