@@ -1,17 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  InstantSearch,
+  useSearchBox,
+  useHits,
+  usePagination,
+  Configure,
+} from "react-instantsearch";
+import { instantMeiliSearch } from "@meilisearch/instant-meilisearch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,53 +27,89 @@ import {
   Search,
   MapPin,
   Building2,
-  Zap,
   ArrowRight,
-  Users,
   CheckCircle2,
   Mail,
   Phone,
   ExternalLink,
-  Star,
-  Briefcase,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Hash,
+  Landmark,
+  Calendar,
+  Globe,
   Package,
   Wrench,
   LayoutGrid,
-  Landmark, // NEW: icon for business size badge
 } from "lucide-react";
+
+// --- Meilisearch Client ---
+const { searchClient } = instantMeiliSearch(
+  process.env.NEXT_PUBLIC_MEILISEARCH_HOST!,
+  process.env.NEXT_PUBLIC_MEILISEARCH_API_KEY!
+);
 
 // --- Types ---
 type CatalogType = "product" | "service" | "both";
-// NEW: Business Size type from API
 type BusinessSize = "Micro" | "Small" | "Medium" | "Large" | "Unknown";
 
-type MatchResult = {
+type CatalogItem = {
   id: number;
-  company: string;
-  matchScore: number;
-  type: string;
-  catalogType: CatalogType; // ← NEW: ประเภทใน Catalog
-  businessSize?: BusinessSize; // NEW: ขนาดธุรกิจจาก registerCapital
+  company_id: number;
+  type: "product" | "service";
+  name: string;
+  description: string;
+  price: number;
+  pricing_model: string;
+  delivery_time: string;
+};
+
+type CompanyCatalog = {
+  type: CatalogType;
+  products: CatalogItem[];
+  services: CatalogItem[];
+};
+
+type CompanyHit = {
+  id: number;
+  tax_id: number;
+  type: number;
+  company_name_th: string;
+  company_name: string;
+  company_status: number;
+  register_date: string;
+  typeof_service: string[];
+  subtypeof_service: string[];
+  additional_info: string;
   location: string;
-  expertise: string[];
-  matchReasons: string[];
-  verified: boolean;
-  projectsCompleted: number;
-  avgRating: number;
-  description?: string;
-  tsic?: string;
-  contact?: {
-    email: string;
-    phone: string;
-    website: string;
-  };
-  services?: string[];
-  products?: string[]; // ← NEW: รายการ Product ที่มีพร้อมขาย
+  city: string;
+  district: string;
+  subdistrict: string;
+  zip: string;
+  website: string;
+  office_number: string;
+  phone_number: string;
+  fax_number: string;
+  is_tech: number;
+  register_capital: number;
+  objective: string;
+  is_verified: number | null;
+  tsic: string;
+  new_s_curve: "ROBOTICS" | "AVIATION_LOGISTICS" | "BIOFUEL_BIOCHEMICAL" | "DIGITAL" | "MEDICAL_HUB" | null;
+  _rankingScore?: number;
+};
+
+// --- New S-Curve Config ---
+type SCurveValue = "ROBOTICS" | "AVIATION_LOGISTICS" | "BIOFUEL_BIOCHEMICAL" | "DIGITAL" | "MEDICAL_HUB";
+
+const S_CURVE_CONFIG: Record<SCurveValue, { label: string; color: string }> = {
+  ROBOTICS:           { label: "หุ่นยนต์", color: "bg-orange-100 text-orange-700 border-orange-200" },
+  AVIATION_LOGISTICS: { label: "การบิน & โลจิสติกส์", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  BIOFUEL_BIOCHEMICAL:{ label: "เชื้อเพลิงชีวภาพ", color: "bg-lime-100 text-lime-700 border-lime-200" },
+  DIGITAL:            { label: "ดิจิทัล", color: "bg-violet-100 text-violet-700 border-violet-200" },
+  MEDICAL_HUB:        { label: "การแพทย์", color: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
 // --- Catalog Type Config ---
@@ -79,101 +119,32 @@ const CATALOG_TYPE_CONFIG = {
     sublabel: "สินค้าพร้อมขาย",
     icon: Package,
     color: "bg-cyan-100 text-cyan-700 border-cyan-200",
-    dotColor: "bg-cyan-500",
-    badgeBg: "bg-cyan-500",
   },
   service: {
     label: "Service",
     sublabel: "รับจ้างพัฒนา",
     icon: Wrench,
     color: "bg-amber-100 text-amber-700 border-amber-200",
-    dotColor: "bg-amber-500",
-    badgeBg: "bg-amber-500",
   },
   both: {
     label: "Product + Service",
     sublabel: "มีทั้งสองประเภท",
     icon: LayoutGrid,
     color: "bg-violet-100 text-violet-700 border-violet-200",
-    dotColor: "bg-violet-500",
-    badgeBg: "bg-violet-500",
   },
 };
 
-// --- NEW: Business Size Config ---
-const BUSINESS_SIZE_CONFIG: Record<string, { label: string; sublabel: string; color: string }> = {
-  Micro: {
-    label: "Micro",
-    sublabel: "< 1.8M",
-    color: "bg-rose-100 text-rose-700 border-rose-200",
-  },
-  Small: {
-    label: "Small",
-    sublabel: "1.8M – 50M",
-    color: "bg-sky-100 text-sky-700 border-sky-200",
-  },
-  Medium: {
-    label: "Medium",
-    sublabel: "50M – 500M",
-    color: "bg-indigo-100 text-indigo-700 border-indigo-200",
-  },
-  Large: {
-    label: "Large",
-    sublabel: "> 500M",
-    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  },
-  Unknown: {
-    label: "N/A",
-    sublabel: "ไม่ทราบ",
-    color: "bg-gray-100 text-gray-500 border-gray-200",
-  },
-};
-
-// --- NEW: Business Size Badge Component ---
-function BusinessSizeBadge({ size }: { size?: string }) {
-  const config = BUSINESS_SIZE_CONFIG[size || "Unknown"] || BUSINESS_SIZE_CONFIG.Unknown;
-  return (
-    <Badge
-      variant="outline"
-      className={`text-xs font-medium gap-1 ${config.color}`}
-    >
-      <Landmark className="w-3 h-3" />
-      {config.label}
-    </Badge>
-  );
-}
-
-// --- Catalog Type Badge Component ---
-function CatalogTypeBadge({ type }: { type?: string }) {
-  const normalizedType = type?.toLowerCase() as CatalogType;
-
-  const config = CATALOG_TYPE_CONFIG[normalizedType];
-
-  if (!config) {
-    return (
-      <Badge
-        variant="outline"
-        className="text-xs font-medium bg-gray-100 text-gray-500 border-gray-200"
-      >
-        Unknown
-      </Badge>
-    );
-  }
-
+function CatalogTypeBadge({ type }: { type: CatalogType }) {
+  const config = CATALOG_TYPE_CONFIG[type];
   const Icon = config.icon;
-
   return (
-    <Badge
-      variant="outline"
-      className={`text-xs font-medium gap-1 ${config.color}`}
-    >
+    <Badge variant="outline" className={`text-xs font-medium gap-1 ${config.color}`}>
       <Icon className="w-3 h-3" />
       {config.label}
     </Badge>
   );
 }
 
-// --- Catalog Type Filter Button ---
 function CatalogTypeFilter({
   value,
   selected,
@@ -190,15 +161,11 @@ function CatalogTypeFilter({
     return { label: c.label, icon: c.icon, color: selected ? c.color : "" };
   };
   const { label, icon: Icon, color } = getConfig();
-
   return (
     <button
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200
-        ${selected
-          ? `${color} shadow-sm`
-          : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-        }`}
+        ${selected ? `${color} shadow-sm` : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"}`}
     >
       <Icon className="w-3.5 h-3.5" />
       {label}
@@ -206,63 +173,137 @@ function CatalogTypeFilter({
   );
 }
 
-export default function MatchingPage() {
-  const [searchTech, setSearchTech] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("");
-  const [selectedBudget, setSelectedBudget] = useState("");
-  const [selectedCatalogType, setSelectedCatalogType] = useState("all"); // ← NEW
-  const [selectedCompany, setSelectedCompany] = useState<MatchResult | null>(null);
-  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalHits, setTotalHits] = useState(0);
+// --- Business Size ---
+const BUSINESS_SIZE_CONFIG: Record<BusinessSize, { label: string; sublabel: string; color: string }> = {
+  Micro: { label: "Micro", sublabel: "< 1.8M", color: "bg-rose-100 text-rose-700 border-rose-200" },
+  Small: { label: "Small", sublabel: "1.8M – 50M", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  Medium: { label: "Medium", sublabel: "50M – 500M", color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+  Large: { label: "Large", sublabel: "> 500M", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  Unknown: { label: "N/A", sublabel: "ไม่ทราบ", color: "bg-gray-100 text-gray-500 border-gray-200" },
+};
 
-  const ITEMS_PER_PAGE = 10;
+function getBusinessSize(capital: number): BusinessSize {
+  if (!capital || capital === 0) return "Unknown";
+  if (capital < 1_800_000) return "Micro";
+  if (capital < 50_000_000) return "Small";
+  if (capital < 500_000_000) return "Medium";
+  return "Large";
+}
 
-  const performSearch = async (pageToFetch = 1) => {
-    setIsSearching(true);
-    try {
-      const queryParams = new URLSearchParams({
-        q: searchTech,
-        region: selectedRegion,
-        catalogType: selectedCatalogType, // ← NEW: ส่ง filter ไป API
-        page: pageToFetch.toString(),
-        limit: ITEMS_PER_PAGE.toString(),
+function BusinessSizeBadge({ capital }: { capital?: number }) {
+  const size = getBusinessSize(capital ?? 0);
+  const config = BUSINESS_SIZE_CONFIG[size];
+  return (
+    <Badge variant="outline" className={`text-xs font-medium gap-1 ${config.color}`}>
+      <Landmark className="w-3 h-3" />
+      {config.label}
+      {size !== "Unknown" && <span className="opacity-60">({config.sublabel})</span>}
+    </Badge>
+  );
+}
+
+function formatCapital(capital?: number) {
+  if (!capital || capital === 0) return "ไม่ทราบ";
+  if (capital >= 1_000_000) return `${(capital / 1_000_000).toLocaleString("th-TH", { maximumFractionDigits: 2 })} ล้านบาท`;
+  return `${capital.toLocaleString("th-TH")} บาท`;
+}
+
+// --- Thai provinces (77 จังหวัด) ---
+const THAI_PROVINCES = [
+  "กรุงเทพมหานคร", "สมุทรปราการ", "นนทบุรี", "ปทุมธานี", "พระนครศรีอยุธยา",
+  "อ่างทอง", "ลพบุรี", "สิงห์บุรี", "ชัยนาท", "สระบุรี", "ชลบุรี", "ระยอง",
+  "จันทบุรี", "ตราด", "ฉะเชิงเทรา", "ปราจีนบุรี", "นครนายก", "สระแก้ว",
+  "นครราชสีมา", "บุรีรัมย์", "สุรินทร์", "ศรีสะเกษ", "อุบลราชธานี", "ยโสธร",
+  "ชัยภูมิ", "อำนาจเจริญ", "หนองบัวลำภู", "ขอนแก่น", "อุดรธานี", "เลย",
+  "หนองคาย", "มหาสารคาม", "ร้อยเอ็ด", "กาฬสินธุ์", "สกลนคร", "นครพนม",
+  "มุกดาหาร", "เชียงใหม่", "ลำพูน", "ลำปาง", "อุตรดิตถ์", "แพร่", "น่าน",
+  "พะเยา", "เชียงราย", "แม่ฮ่องสอน", "นครสวรรค์", "อุทัยธานี", "กำแพงเพชร",
+  "ตาก", "สุโขทัย", "พิษณุโลก", "พิจิตร", "เพชรบูรณ์", "ราชบุรี", "กาญจนบุรี",
+  "สุพรรณบุรี", "นครปฐม", "สมุทรสาคร", "สมุทรสงคราม", "เพชรบุรี",
+  "ประจวบคีรีขันธ์", "นครศรีธรรมราช", "กระบี่", "พังงา", "ภูเก็ต",
+  "สุราษฎร์ธานี", "ระนอง", "ชุมพร", "สงขลา", "สตูล", "ตรัง", "พัทลุง",
+  "ปัตตานี", "ยะลา", "นราธิวาส", "บึงกาฬ",
+];
+
+// --- Inner component (uses InstantSearch hooks) ---
+function SearchContent() {
+  const [selectedCity, setSelectedCity] = useState("");
+  const [provinceOpen, setProvinceOpen] = useState(false);
+  const [selectedSCurve, setSelectedSCurve] = useState<SCurveValue | "">("");
+  const [selectedCatalogType, setSelectedCatalogType] = useState("all");
+  const [selectedCompany, setSelectedCompany] = useState<CompanyHit | null>(null);
+  const [catalogMap, setCatalogMap] = useState<Map<number, CompanyCatalog>>(new Map());
+
+  const { refine, query: searchQuery } = useSearchBox();
+  const { hits, results } = useHits<CompanyHit>();
+  const {
+    currentRefinement: currentPage,
+    nbPages: totalPages,
+    refine: goToPage,
+  } = usePagination();
+
+  const companies = hits as unknown as CompanyHit[];
+
+  // Fetch all company_catalog data once on mount
+  useEffect(() => {
+    const host = process.env.NEXT_PUBLIC_MEILISEARCH_HOST;
+    const key = process.env.NEXT_PUBLIC_MEILISEARCH_API_KEY;
+    fetch(`${host}/indexes/company_catalog/documents?limit=1000`, {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const map = new Map<number, CompanyCatalog>();
+        for (const item of data.results as CatalogItem[]) {
+          const existing = map.get(item.company_id) ?? { type: "service" as CatalogType, products: [], services: [] };
+          if (item.type === "product") existing.products.push(item);
+          else existing.services.push(item);
+          existing.type =
+            existing.products.length > 0 && existing.services.length > 0
+              ? "both"
+              : existing.products.length > 0
+              ? "product"
+              : "service";
+          map.set(item.company_id, existing);
+        }
+        setCatalogMap(map);
+      })
+      .catch(console.error);
+  }, []);
+
+  // Build filter string
+  const filters = [
+    selectedCity ? `city = "${selectedCity}"` : "",
+    selectedSCurve ? `new_s_curve = "${selectedSCurve}"` : "",
+  ].filter(Boolean).join(" AND ");
+  const filterString = filters;
+
+  // Client-side filter by catalog type
+  const filteredCompanies = selectedCatalogType === "all"
+    ? companies
+    : companies.filter((c) => {
+        const cat = catalogMap.get(c.id);
+        if (!cat) return false;
+        if (selectedCatalogType === "both") return cat.type === "both";
+        return cat.type === selectedCatalogType || cat.type === "both";
       });
 
-      const res = await fetch(`/api/companies/search?${queryParams.toString()}`);
-      if (!res.ok) throw new Error("Network latency or failed fetch");
-
-      const data = await res.json();
-
-      setMatchResults(data.hits as MatchResult[]);
-      setTotalHits(data.totalHits);
-      setTotalPages(data.totalPages);
-      setCurrentPage(pageToFetch);
-    } catch (err) {
-      console.error("Search failed:", err);
-    } finally {
-      setIsSearching(false);
-    }
+  // Score helpers
+  const scorePercent = (score?: number) => Math.round((score ?? 1) * 100);
+  const scoreGradient = (score?: number) => {
+    const s = score ?? 1;
+    if (s >= 0.8) return "from-emerald-600 to-emerald-500";
+    if (s >= 0.6) return "from-primary to-primary/80";
+    if (s >= 0.4) return "from-amber-500 to-amber-400";
+    return "from-rose-500 to-rose-400";
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      performSearch(1);
-    }, 500);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTech, selectedRegion, selectedBudget, selectedCatalogType]); // ← เพิ่ม dep
-
-  // Count by type (for filter badges)
-  const countByType = (type: string) =>
-    type === "all"
-      ? matchResults.length
-      : matchResults.filter((r) => r.catalogType === type || (type === "product" && r.catalogType === "both") || (type === "service" && r.catalogType === "both")).length;
+  const totalHits = results?.nbHits ?? 0;
 
   return (
     <main className="pt-20">
+      <Configure filters={filterString} hitsPerPage={12} {...({ meiliSearchParams: { showRankingScore: true } } as any)} />
+
       {/* Header */}
       <section className="py-16 bg-gradient-to-br from-emerald-50 via-background to-primary/5 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
@@ -285,72 +326,87 @@ export default function MatchingPage() {
         </div>
       </section>
 
-      {/* Matching Criteria */}
-      <section className="py-8 border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-16 lg:top-20 z-40">
+      {/* Search & Filter Bar */}
+      <section className="py-6 border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-16 lg:top-20 z-40">
         <div className="container mx-auto px-4 space-y-4">
-          {/* Row 1: Search inputs */}
+          {/* Row 1: Search + City */}
           <div className="flex flex-col lg:flex-row gap-4 items-end">
             <div className="flex-1">
               <label className="text-sm font-medium text-foreground mb-2 block">
-                ความต้องการเทคโนโลยี
+                ค้นหาบริษัท / เทคโนโลยี / บริการ
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
-                  placeholder="เช่น AI/ML, Data Analytics, IoT..."
-                  value={searchTech}
-                  onChange={(e) => setSearchTech(e.target.value)}
+                  placeholder="เช่น AI, Data Analytics, Software, ชื่อบริษัท..."
+                  value={searchQuery}
+                  onChange={(e) => refine(e.target.value)}
                   className="pl-10 h-12"
                 />
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">พื้นที่</label>
-              <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-                <SelectTrigger className="w-[200px] h-12">
-                  <MapPin className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="เลือกภูมิภาค" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">ทั่วประเทศ</SelectItem>
-                  <SelectItem value="central">กรุงเทพฯ และปริมณฑล</SelectItem>
-                  <SelectItem value="north">ภาคเหนือ</SelectItem>
-                  <SelectItem value="east">ภาคตะวันออก</SelectItem>
-                  <SelectItem value="south">ภาคใต้</SelectItem>
-                  <SelectItem value="northeast">ภาคตะวันออกเฉียงเหนือ</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium text-foreground mb-2 block">จังหวัด</label>
+              <Popover open={provinceOpen} onOpenChange={setProvinceOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-52 h-12 justify-between font-normal">
+                    <span className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                      {selectedCity || "ทั่วประเทศ"}
+                    </span>
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="ค้นหาจังหวัด..." />
+                    <CommandList>
+                      <CommandEmpty>ไม่พบจังหวัด</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="__all__" onSelect={() => { setSelectedCity(""); setProvinceOpen(false); }}>
+                          <Check className={`mr-2 w-4 h-4 ${!selectedCity ? "opacity-100" : "opacity-0"}`} />
+                          ทั่วประเทศ
+                        </CommandItem>
+                        {THAI_PROVINCES.map((p) => (
+                          <CommandItem key={p} value={p} onSelect={() => { setSelectedCity(p); setProvinceOpen(false); }}>
+                            <Check className={`mr-2 w-4 h-4 ${selectedCity === p ? "opacity-100" : "opacity-0"}`} />
+                            {p}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">งบประมาณ</label>
-              <Select value={selectedBudget} onValueChange={setSelectedBudget}>
-                <SelectTrigger className="w-[200px] h-12">
-                  <SelectValue placeholder="ช่วงงบประมาณ" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">ไม่จำกัด</SelectItem>
-                  <SelectItem value="small">ไม่เกิน 500,000</SelectItem>
-                  <SelectItem value="medium">500,001 - 2,000,000</SelectItem>
-                  <SelectItem value="large">มากกว่า 2,000,000</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              className="h-12 px-8 bg-primary hover:bg-primary/90"
-              onClick={() => performSearch(1)}
-              disabled={isSearching}
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              {isSearching ? "กำลังค้นหา..." : "วิเคราะห์และจับคู่"}
-            </Button>
           </div>
 
-          {/* Row 2: Catalog Type Filter ← NEW */}
+          {/* Row 2: New S-Curve Filter */}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-muted-foreground shrink-0">
-              ประเภทผู้ให้บริการ:
-            </span>
-            {["all", "product", "service", "both"].map((type) => (
+            <span className="text-sm font-medium text-muted-foreground shrink-0">New S-Curve:</span>
+            <button
+              onClick={() => setSelectedSCurve("")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200
+                ${!selectedSCurve ? "bg-primary text-primary-foreground border-primary shadow-sm" : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"}`}
+            >
+              ทั้งหมด
+            </button>
+            {(Object.entries(S_CURVE_CONFIG) as [SCurveValue, typeof S_CURVE_CONFIG[SCurveValue]][]).map(([key, cfg]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedSCurve(selectedSCurve === key ? "" : key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200
+                  ${selectedSCurve === key ? `${cfg.color} shadow-sm` : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"}`}
+              >
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Row 3: Catalog Type Filter */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground shrink-0">ประเภทผู้ให้บริการ:</span>
+            {(["all", "product", "service", "both"] as const).map((type) => (
               <CatalogTypeFilter
                 key={type}
                 value={type}
@@ -369,7 +425,7 @@ export default function MatchingPage() {
         </div>
       </section>
 
-      {/* Content */}
+      {/* Results */}
       <section className="py-12">
         <div className="container mx-auto px-4">
           <div className="space-y-6">
@@ -378,181 +434,162 @@ export default function MatchingPage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground">ผู้ให้บริการที่แนะนำ</h2>
                 <p className="text-sm text-muted-foreground">
-                  จับคู่จาก User Journey และ Profile ข้อมูลของคุณ
+                  {searchQuery ? `ผลการค้นหา "${searchQuery}"` : "แสดงบริษัทเทคโนโลยีทั้งหมด"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {/* Type summary badges ← NEW */}
-                {matchResults.some((r) => r.catalogType === "product" || r.catalogType === "both") && (
+                {filteredCompanies.some((c) => { const cat = catalogMap.get(c.id); return cat?.type === "product" || cat?.type === "both"; }) && (
                   <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 gap-1">
-                    <Package className="w-3 h-3" />
-                    Product
+                    <Package className="w-3 h-3" /> Product
                   </Badge>
                 )}
-                {matchResults.some((r) => r.catalogType === "service" || r.catalogType === "both") && (
+                {filteredCompanies.some((c) => { const cat = catalogMap.get(c.id); return cat?.type === "service" || cat?.type === "both"; }) && (
                   <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 gap-1">
-                    <Wrench className="w-3 h-3" />
-                    Service
+                    <Wrench className="w-3 h-3" /> Service
                   </Badge>
                 )}
-                
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                  พบ {totalHits} รายที่เหมาะสม
+                  พบ {selectedCatalogType === "all" ? totalHits : filteredCompanies.length} บริษัท
                 </Badge>
               </div>
             </div>
 
-            {/* Result Cards */}
-            {matchResults.map((result) => (
-              <Card
-                key={result.id}
-                className="border-border/50 hover:shadow-lg transition-all duration-300 overflow-hidden"
-              >
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Score */}
-                    <div className="lg:w-32 bg-gradient-to-br from-primary to-primary/80 p-6 flex flex-col items-center justify-center text-white shrink-0">
-                      <div className="text-4xl font-bold">{result.matchScore}</div>
-                      <div className="text-xs text-white/80 font-medium">Match Score</div>
-                    </div>
-                    {/* Content */}
-                    <div className="flex-1 p-6">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <h3 className="text-lg font-semibold text-foreground">
-                              {result.company}
-                            </h3>
-                            {result.verified && (
-                              <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
-                                <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
-                              </Badge>
+            {/* Company Cards */}
+            {filteredCompanies.length === 0 && (
+              <div className="text-center py-16 text-muted-foreground">
+                <Building2 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p className="text-lg">ไม่พบบริษัทที่ตรงกับเงื่อนไข</p>
+                <p className="text-sm mt-1">ลองเปลี่ยนคำค้นหาหรือเลือกประเภทอื่น</p>
+              </div>
+            )}
+
+            {filteredCompanies.map((company) => {
+              const catalog = catalogMap.get(company.id);
+              return (
+                <Card
+                  key={company.id}
+                  className="border-border/50 hover:shadow-lg transition-all duration-300 overflow-hidden"
+                >
+                  <CardContent className="p-0">
+                    <div className="flex flex-col lg:flex-row">
+                      {/* Ranking Score */}
+                      <div className={`lg:w-28 bg-gradient-to-br ${scoreGradient(company._rankingScore)} p-5 flex flex-col items-center justify-center text-white shrink-0`}>
+                        <div className="text-4xl font-bold tabular-nums">
+                          {scorePercent(company._rankingScore)}
+                        </div>
+                        <div className="text-xs text-white/80 font-medium mt-1">Match Score</div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 p-6">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            {/* Name + Badges */}
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h3 className="text-lg font-semibold text-foreground truncate">
+                                {company.company_name_th || company.company_name}
+                              </h3>
+                              {company.is_verified === 1 && (
+                                <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 shrink-0">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
+                                </Badge>
+                              )}
+                              {catalog && <CatalogTypeBadge type={catalog.type} />}
+                              <BusinessSizeBadge capital={company.register_capital} />
+                              {company.tsic && (
+                                <span className="flex items-center gap-1 border border-blue-400 text-blue-700 bg-blue-100 text-xs px-1.5 py-0.5 rounded-xl shrink-0">
+                                  <Hash className="w-3 h-3" /> TSIC: {company.tsic}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* English name */}
+                            {company.company_name && (
+                              <p className="text-sm text-muted-foreground mb-2">{company.company_name}</p>
                             )}
-                            {/* Catalog Type Badge ← NEW */}
-                            <CatalogTypeBadge type={result.catalogType} />
-                            {/* NEW: Business Size Badge */}
-                            <BusinessSizeBadge size={result.businessSize} />
-                            {result.tsic && (
-                              <span className="flex items-center gap-1 border border-blue-400 text-blue-700 bg-blue-100 text-xs px-1.5 py-0.5 rounded-xl">
-                                <Hash className="w-3 h-3" /> TSIC: {result.tsic}
-                              </span>
+
+                            {/* Meta row */}
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mb-3">
+                              {company.city && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {company.city}
+                                  {company.district ? ` · ${company.district}` : ""}
+                                </span>
+                              )}
+                              {company.register_date && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" /> จดทะเบียน {company.register_date}
+                                </span>
+                              )}
+                              {company.website && (
+                                <a
+                                  href={company.website}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 hover:text-primary transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Globe className="w-3 h-3" />
+                                  {company.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Description */}
+                            {(company.additional_info || company.objective) && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                {company.additional_info || company.objective}
+                              </p>
+                            )}
+
+                            {/* Catalog Callout */}
+                            {catalog && (
+                              <div className={`rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm border
+                                ${catalog.type === "product" ? "bg-cyan-50 border-cyan-200 text-cyan-800" : ""}
+                                ${catalog.type === "service" ? "bg-amber-50 border-amber-200 text-amber-800" : ""}
+                                ${catalog.type === "both" ? "bg-violet-50 border-violet-200 text-violet-800" : ""}
+                              `}>
+                                {catalog.type === "product" && <><Package className="w-4 h-4 shrink-0" /><span>มีสินค้าพร้อมขาย — ซื้อได้ทันที ราคาชัดเจน ไม่ต้องรอพัฒนา</span></>}
+                                {catalog.type === "service" && <><Wrench className="w-4 h-4 shrink-0" /><span>รับจ้างพัฒนา Custom — ปรับแต่งได้ตามโจทย์ ต้องผ่านกระบวนการ Discovery</span></>}
+                                {catalog.type === "both" && <><LayoutGrid className="w-4 h-4 shrink-0" /><span>มีทั้ง Product พร้อมขาย และ Service รับพัฒนา Custom</span></>}
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Building2 className="w-3 h-3" /> {result.type}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {result.location}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {result.projectsCompleted} โครงการ
-                            </span>
-                          </div>
 
+                          <Button
+                            className="bg-primary hover:bg-primary/90 shrink-0 self-start"
+                            onClick={() => setSelectedCompany(company)}
+                          >
+                            ดูรายละเอียด
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                          </Button>
                         </div>
-                        <Button
-                          className="bg-primary hover:bg-primary/90 shrink-0"
-                          onClick={() => setSelectedCompany(result)}
-                        >
-                          ดูรายละเอียด
-                          <ArrowRight className="w-4 h-4 ml-2" />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {result.expertise.map((exp) => (
-                          <Badge key={exp} variant="outline" className="text-xs">
-                            {exp}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Catalog Callout ← NEW: แสดงข้อมูลที่เกี่ยวกับ Product/Service */}
-                      {result.catalogType !== undefined && (
-                        <div
-                          className={`rounded-lg px-4 py-2.5 mb-3 flex items-center gap-2 text-sm border
-                            ${result.catalogType === "product" ? "bg-cyan-50 border-cyan-200 text-cyan-800" : ""}
-                            ${result.catalogType === "service" ? "bg-amber-50 border-amber-200 text-amber-800" : ""}
-                            ${result.catalogType === "both" ? "bg-violet-50 border-violet-200 text-violet-800" : ""}
-                          `}
-                        >
-                          {result.catalogType === "product" && (
-                            <>
-                              <Package className="w-4 h-4 shrink-0" />
-                              <span>มีสินค้าพร้อมขาย — ซื้อได้ทันที ราคาชัดเจน ไม่ต้องรอพัฒนา</span>
-                            </>
-                          )}
-                          {result.catalogType === "service" && (
-                            <>
-                              <Wrench className="w-4 h-4 shrink-0" />
-                              <span>รับจ้างพัฒนา Custom — ปรับแต่งได้ตามโจทย์ ต้องผ่านกระบวนการ Discovery</span>
-                            </>
-                          )}
-                          {result.catalogType === "both" && (
-                            <>
-                              <LayoutGrid className="w-4 h-4 shrink-0" />
-                              <span>มีทั้ง Product พร้อมขาย และ Service รับพัฒนา Custom</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="bg-muted/50 rounded-xl p-4">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                          เหตุผลในการจับคู่
-                        </h4>
-                        <ul className="space-y-1">
-                          {result.matchReasons.map((reason, idx) => (
-                            <li key={idx} className="flex items-center gap-2 text-sm text-foreground">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                              {reason}
-                            </li>
-                          ))}
-                        </ul>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
 
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-8 pb-4">
                 <div className="text-sm text-muted-foreground">
-                  แสดงหน้า{" "}
-                  <span className="font-medium text-foreground">{currentPage}</span> จากทั้งหมด{" "}
+                  หน้า <span className="font-medium text-foreground">{currentPage + 1}</span> จาก{" "}
                   <span className="font-medium text-foreground">{totalPages}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline" size="icon"
-                    onClick={() => performSearch(1)}
-                    disabled={currentPage === 1 || isSearching}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => goToPage(0)} disabled={currentPage === 0}>
                     <ChevronsLeft className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="outline" size="icon"
-                    onClick={() => performSearch(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1 || isSearching}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 0}>
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
-                  <div className="text-sm font-medium px-4">{currentPage}</div>
-                  <Button
-                    variant="outline" size="icon"
-                    onClick={() => performSearch(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages || isSearching}
-                  >
+                  <div className="text-sm font-medium px-4">{currentPage + 1}</div>
+                  <Button variant="outline" size="icon" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages - 1}>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="outline" size="icon"
-                    onClick={() => performSearch(totalPages)}
-                    disabled={currentPage === totalPages || isSearching}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => goToPage(totalPages - 1)} disabled={currentPage === totalPages - 1}>
                     <ChevronsRight className="w-4 h-4" />
                   </Button>
                 </div>
@@ -565,195 +602,215 @@ export default function MatchingPage() {
       {/* Company Detail Dialog */}
       <Dialog open={!!selectedCompany} onOpenChange={() => setSelectedCompany(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedCompany && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-2xl font-bold">
-                    {selectedCompany.matchScore}
-                  </div>
-                  <div>
-                    <DialogTitle className="text-xl flex items-center gap-2 flex-wrap">
-                      {selectedCompany.company}
-                      {selectedCompany.verified && (
-                        <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
-                        </Badge>
+          {selectedCompany && (() => {
+            const catalog = catalogMap.get(selectedCompany.id);
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${scoreGradient(selectedCompany._rankingScore)} flex items-center justify-center text-white text-xl font-bold tabular-nums shrink-0`}>
+                      {scorePercent(selectedCompany._rankingScore)}
+                    </div>
+                    <div className="min-w-0">
+                      <DialogTitle className="text-xl flex items-center gap-2 flex-wrap">
+                        {selectedCompany.company_name_th || selectedCompany.company_name}
+                        {selectedCompany.is_verified === 1 && (
+                          <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
+                          </Badge>
+                        )}
+                        {catalog && <CatalogTypeBadge type={catalog.type} />}
+                        <BusinessSizeBadge capital={selectedCompany.register_capital} />
+                      </DialogTitle>
+                      {selectedCompany.company_name && selectedCompany.company_name_th && (
+                        <p className="text-sm text-muted-foreground mt-0.5">{selectedCompany.company_name}</p>
                       )}
-                      {/* Catalog Type Badge in Dialog ← NEW */}
-                      <CatalogTypeBadge type={selectedCompany.catalogType} />
-                      {/* NEW: Business Size Badge in Dialog */}
-                      <BusinessSizeBadge size={selectedCompany.businessSize} />
-                    </DialogTitle>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <Building2 className="w-3 h-3" /> {selectedCompany.type}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {selectedCompany.location}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </DialogHeader>
-
-              <div className="space-y-6 mt-4">
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-muted/50 rounded-xl">
-                    <div className="flex items-center justify-center gap-1 text-amber-500 mb-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="text-lg font-bold">{selectedCompany.avgRating}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">คะแนนเฉลี่ย</p>
-                  </div>
-                  <div className="text-center p-4 bg-muted/50 rounded-xl">
-                    <div className="flex items-center justify-center gap-1 text-primary mb-1">
-                      <Briefcase className="w-4 h-4" />
-                      <span className="text-lg font-bold">{selectedCompany.projectsCompleted}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">โครงการสำเร็จ</p>
-                  </div>
-                  <div className="text-center p-4 bg-muted/50 rounded-xl">
-                    <div className="flex items-center justify-center gap-1 text-emerald-500 mb-1">
-                      <Target className="w-4 h-4" />
-                      <span className="text-lg font-bold">{selectedCompany.matchScore}%</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Match Score</p>
-                  </div>
-                </div>
-
-                {/* Catalog Type Detail ← NEW */}
-                <div className={`rounded-xl p-4 border
-                  ${selectedCompany.catalogType === "product" ? "bg-cyan-50 border-cyan-200" : ""}
-                  ${selectedCompany.catalogType === "service" ? "bg-amber-50 border-amber-200" : ""}
-                  ${selectedCompany.catalogType === "both" ? "bg-violet-50 border-violet-200" : ""}
-                `}>
-                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    {selectedCompany.catalogType === "product" && <><Package className="w-4 h-4 text-cyan-600" /><span className="text-cyan-800">สินค้าพร้อมขาย (Product)</span></>}
-                    {selectedCompany.catalogType === "service" && <><Wrench className="w-4 h-4 text-amber-600" /><span className="text-amber-800">รับจ้างพัฒนา (Service)</span></>}
-                    {selectedCompany.catalogType === "both" && <><LayoutGrid className="w-4 h-4 text-violet-600" /><span className="text-violet-800">Product + Service</span></>}
-                  </h4>
-
-                  {/* Products list */}
-                  {selectedCompany.products && selectedCompany.products.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                        <Package className="w-3 h-3" /> สินค้าพร้อมขาย
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedCompany.products.map((p) => (
-                          <Badge key={p} className="text-xs bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200">
-                            {p}
-                          </Badge>
-                        ))}
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                        {selectedCompany.city && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {selectedCompany.city}
+                          </span>
+                        )}
+                        {selectedCompany.register_date && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {selectedCompany.register_date}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  )}
-
-                  {/* Services list */}
-                  {selectedCompany.services && selectedCompany.services.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                        <Wrench className="w-3 h-3" /> บริการรับพัฒนา
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedCompany.services.map((s) => (
-                          <Badge key={s} className="text-xs bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200">
-                            {s}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Description */}
-                {selectedCompany.description && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2">เกี่ยวกับบริษัท</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {selectedCompany.description}
-                    </p>
                   </div>
-                )}
+                </DialogHeader>
 
-                {/* TSIC Code */}
-                {selectedCompany.tsic && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2">
-                      รหัส TSIC
-                    </h4>
-                    <Badge className="text-sm bg-blue-100 text-blue-700 border-blue-200">
-                      <Hash className="w-3 h-3 mr-1" />
-                      {selectedCompany.tsic}
+                <div className="space-y-5 mt-4">
+                  {/* TSIC Badge */}
+                  {selectedCompany.tsic && (
+                    <Badge className="text-sm bg-blue-100 text-blue-700 border-blue-200 gap-1">
+                      <Hash className="w-3 h-3" />
+                      TSIC: {selectedCompany.tsic}
                     </Badge>
-                  </div>
-                )}
+                  )}
 
-                {/* Expertise */}
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">ความเชี่ยวชาญ</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedCompany.expertise.map((exp) => (
-                      <Badge key={exp} variant="outline" className="text-xs">{exp}</Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Match Reasons */}
-                <div className="bg-emerald-50 rounded-xl p-4">
-                  <h4 className="text-sm font-semibold text-emerald-800 mb-2">เหตุผลในการจับคู่</h4>
-                  <ul className="space-y-2">
-                    {selectedCompany.matchReasons.map((reason, idx) => (
-                      <li key={idx} className="flex items-center gap-2 text-sm text-emerald-700">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                        {reason}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Contact */}
-                {selectedCompany.contact && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-3">ข้อมูลติดต่อ</h4>
-                    <div className="space-y-2">
-                      <a href={`mailto:${selectedCompany.contact.email}`}
-                        className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <Mail className="w-4 h-4" />
-                        {selectedCompany.contact.email}
-                      </a>
-                      <a href={`tel:${selectedCompany.contact.phone}`}
-                        className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <Phone className="w-4 h-4" />
-                        {selectedCompany.contact.phone}
-                      </a>
-                      <a href={`https://${selectedCompany.contact.website}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <ExternalLink className="w-4 h-4" />
-                        {selectedCompany.contact.website}
-                      </a>
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted/50 rounded-xl">
+                      <p className="text-xs text-muted-foreground mb-1">ทุนจดทะเบียน</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatCapital(selectedCompany.register_capital)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-muted/50 rounded-xl">
+                      <p className="text-xs text-muted-foreground mb-1">ที่อยู่</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {[selectedCompany.subdistrict, selectedCompany.district, selectedCompany.city]
+                          .filter(Boolean)
+                          .join(", ") || "-"}
+                      </p>
                     </div>
                   </div>
-                )}
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-4 border-t border-border">
-                  <Button className="flex-1 bg-primary hover:bg-primary/90">
-                    <Mail className="w-4 h-4 mr-2" />
-                    ติดต่อบริษัท
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <Users className="w-4 h-4 mr-2" />
-                    ขอนัดประชุม
-                  </Button>
+                  {/* Catalog Section */}
+                  {catalog && (
+                    <div className={`rounded-xl p-4 border
+                      ${catalog.type === "product" ? "bg-cyan-50 border-cyan-200" : ""}
+                      ${catalog.type === "service" ? "bg-amber-50 border-amber-200" : ""}
+                      ${catalog.type === "both" ? "bg-violet-50 border-violet-200" : ""}
+                    `}>
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        {catalog.type === "product" && <><Package className="w-4 h-4 text-cyan-600" /><span className="text-cyan-800">สินค้าพร้อมขาย (Product)</span></>}
+                        {catalog.type === "service" && <><Wrench className="w-4 h-4 text-amber-600" /><span className="text-amber-800">รับจ้างพัฒนา (Service)</span></>}
+                        {catalog.type === "both" && <><LayoutGrid className="w-4 h-4 text-violet-600" /><span className="text-violet-800">Product + Service</span></>}
+                      </h4>
+
+                      {catalog.products.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                            <Package className="w-3 h-3" /> สินค้าพร้อมขาย
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {catalog.products.map((p) => (
+                              <Badge key={p.id} className="text-xs bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200">
+                                {p.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {catalog.services.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                            <Wrench className="w-3 h-3" /> บริการรับพัฒนา
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {catalog.services.map((s) => (
+                              <Badge key={s.id} className="text-xs bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200">
+                                {s.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {(selectedCompany.additional_info || selectedCompany.objective) && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">เกี่ยวกับบริษัท</h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {selectedCompany.additional_info || selectedCompany.objective}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Address */}
+                  {selectedCompany.location && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">ที่อยู่สำนักงาน</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedCompany.location}
+                        {selectedCompany.zip ? ` ${selectedCompany.zip}` : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Contact */}
+                  {(selectedCompany.website || selectedCompany.phone_number || selectedCompany.office_number) && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-3">ข้อมูลติดต่อ</h4>
+                      <div className="space-y-2">
+                        {(selectedCompany.phone_number || selectedCompany.office_number) && (
+                          <a
+                            href={`tel:${selectedCompany.phone_number || selectedCompany.office_number}`}
+                            className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Phone className="w-4 h-4" />
+                            {selectedCompany.phone_number || selectedCompany.office_number}
+                          </a>
+                        )}
+                        {selectedCompany.website && (
+                          <a
+                            href={selectedCompany.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 text-sm text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            {selectedCompany.website}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tax ID */}
+                  {selectedCompany.tax_id && (
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-xs text-muted-foreground">
+                        เลขประจำตัวผู้เสียภาษี: {selectedCompany.tax_id}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4 border-t border-border">
+                    {(selectedCompany.phone_number || selectedCompany.office_number) ? (
+                      <a href={`tel:${selectedCompany.phone_number || selectedCompany.office_number}`} className="flex-1">
+                        <Button className="w-full bg-primary hover:bg-primary/90">
+                          <Phone className="w-4 h-4 mr-2" />
+                          โทรติดต่อ
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button className="flex-1 bg-primary hover:bg-primary/90" disabled>
+                        <Mail className="w-4 h-4 mr-2" />
+                        ติดต่อบริษัท
+                      </Button>
+                    )}
+                    {selectedCompany.website && (
+                      <a href={selectedCompany.website} target="_blank" rel="noopener noreferrer" className="flex-1">
+                        <Button variant="outline" className="w-full">
+                          <Globe className="w-4 h-4 mr-2" />
+                          เยี่ยมชมเว็บไซต์
+                        </Button>
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+// --- Root component wraps with InstantSearch ---
+export default function MatchingPage() {
+  return (
+    <InstantSearch indexName="bdi_acc_company_with_tsic" searchClient={searchClient}>
+      <SearchContent />
+    </InstantSearch>
   );
 }
